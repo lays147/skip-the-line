@@ -37,21 +37,14 @@ func (c *Client) SendDM(ctx context.Context, slackUserID, message string) error 
 		return fmt.Errorf("slack: open DM channel for user %q: %w", slackUserID, err)
 	}
 
-	var rawBlocks []json.RawMessage
-	if err := json.Unmarshal([]byte(message), &rawBlocks); err != nil {
+	// Wrap the blocks array in the envelope expected by slack.Blocks.UnmarshalJSON.
+	envelope := fmt.Sprintf(`{"blocks":%s}`, message)
+	var blocks slack.Blocks
+	if err := json.Unmarshal([]byte(envelope), &blocks); err != nil {
 		return fmt.Errorf("slack: invalid block kit JSON: %w", err)
 	}
 
-	blocks := make([]slack.Block, 0, len(rawBlocks))
-	for _, raw := range rawBlocks {
-		block, err := slack.UnmarshalBlock(raw)
-		if err != nil {
-			return fmt.Errorf("slack: unmarshal block: %w", err)
-		}
-		blocks = append(blocks, block)
-	}
-
-	_, _, err = c.api.PostMessageContext(ctx, channel.ID, slack.MsgOptionBlocks(blocks...))
+	_, _, err = c.api.PostMessageContext(ctx, channel.ID, slack.MsgOptionBlocks(blocks.BlockSet...))
 	if err != nil {
 		return fmt.Errorf("slack: post message to channel %q: %w", channel.ID, err)
 	}
