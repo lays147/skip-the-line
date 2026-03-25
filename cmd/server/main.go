@@ -49,8 +49,8 @@ func main() {
 		logger.Fatal("failed to load subscriptions", zap.Error(err))
 	}
 
-	// Initialise OTel meter provider and metrics handler.
-	mp, metricsHandler, err := metrics.NewMeterProvider(cfg)
+	// Initialise OTel meter provider.
+	mp, err := metrics.NewMeterProvider(cfg)
 	if err != nil {
 		logger.Fatal("failed to initialise meter provider", zap.Error(err))
 	}
@@ -75,7 +75,6 @@ func main() {
 	r.Post("/webhook", webhookHandler.ServeHTTP)
 	r.Get("/healthz", healthHandler.Healthz)
 	r.Get("/readyz", healthHandler.Readyz)
-	r.Handle("/metrics", metricsHandler)
 
 	// Mark service as ready.
 	healthHandler.SetReady(true)
