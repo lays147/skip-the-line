@@ -1,6 +1,10 @@
 # skip-the-line
 
-GitHub webhook receiver that sends Slack DMs to subscribed users for pull request activity (opened, closed, review requested).
+Skipt The Line has the purpose to reduce the cognitive toil of pinging coworkers to review a PR and for the author to keep checking GitHub for reviews on it's own PR's. 
+
+With this automation we use GitHub Webhooks to send notifications via slack for reviewers to review and for an author to check out request changes or approves.
+
+Project 100% built with [AWS Kiro](kiro.dev)
 
 ## How it works
 
