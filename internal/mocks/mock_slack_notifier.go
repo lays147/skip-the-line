@@ -36,7 +36,7 @@ type SlackNotifierMock struct {
 	LookupUserByEmailFunc func(ctx context.Context, email string) (string, error)
 
 	// SendDMFunc mocks the SendDM method.
-	SendDMFunc func(ctx context.Context, email string, message string) error
+	SendDMFunc func(ctx context.Context, slackUserID string, message string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -51,8 +51,8 @@ type SlackNotifierMock struct {
 		SendDM []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Email is the email argument value.
-			Email string
+			// SlackUserID is the slackUserID argument value.
+			SlackUserID string
 			// Message is the message argument value.
 			Message string
 		}
@@ -98,23 +98,23 @@ func (mock *SlackNotifierMock) LookupUserByEmailCalls() []struct {
 }
 
 // SendDM calls SendDMFunc.
-func (mock *SlackNotifierMock) SendDM(ctx context.Context, email string, message string) error {
+func (mock *SlackNotifierMock) SendDM(ctx context.Context, slackUserID string, message string) error {
 	if mock.SendDMFunc == nil {
 		panic("SlackNotifierMock.SendDMFunc: method is nil but SlackNotifier.SendDM was just called")
 	}
 	callInfo := struct {
-		Ctx     context.Context
-		Email   string
-		Message string
+		Ctx         context.Context
+		SlackUserID string
+		Message     string
 	}{
-		Ctx:     ctx,
-		Email:   email,
-		Message: message,
+		Ctx:         ctx,
+		SlackUserID: slackUserID,
+		Message:     message,
 	}
 	mock.lockSendDM.Lock()
 	mock.calls.SendDM = append(mock.calls.SendDM, callInfo)
 	mock.lockSendDM.Unlock()
-	return mock.SendDMFunc(ctx, email, message)
+	return mock.SendDMFunc(ctx, slackUserID, message)
 }
 
 // SendDMCalls gets all the calls that were made to SendDM.
@@ -122,14 +122,14 @@ func (mock *SlackNotifierMock) SendDM(ctx context.Context, email string, message
 //
 //	len(mockedSlackNotifier.SendDMCalls())
 func (mock *SlackNotifierMock) SendDMCalls() []struct {
-	Ctx     context.Context
-	Email   string
-	Message string
+	Ctx         context.Context
+	SlackUserID string
+	Message     string
 } {
 	var calls []struct {
-		Ctx     context.Context
-		Email   string
-		Message string
+		Ctx         context.Context
+		SlackUserID string
+		Message     string
 	}
 	mock.lockSendDM.RLock()
 	calls = mock.calls.SendDM

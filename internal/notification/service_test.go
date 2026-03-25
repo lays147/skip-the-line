@@ -13,13 +13,13 @@ import (
 
 func strPtr(s string) *string { return &s }
 
-var testSubs = []subscription.Subscription{
-	{GitHubUsername: "octocat", Email: "octocat@example.com"},
-	{GitHubUsername: "reviewer1", Email: "reviewer1@example.com"},
-	{GitHubUsername: "reviewer2", Email: "reviewer2@example.com"},
-	{GitHubUsername: "teamMember1", Email: "tm1@example.com"},
-	{GitHubUsername: "teamMember2", Email: "tm2@example.com"},
-	{GitHubUsername: "author", Email: "author@example.com"},
+var testSubs = subscription.Registry{
+	"octocat":     "octocat@example.com",
+	"reviewer1":   "reviewer1@example.com",
+	"reviewer2":   "reviewer2@example.com",
+	"teamMember1": "tm1@example.com",
+	"teamMember2": "tm2@example.com",
+	"author":      "author@example.com",
 }
 
 // --- 8.2: pull_request review_requested ---
@@ -122,14 +122,15 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dmEmails := []string{}
+			dmUserIDs := []string{}
 			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, email, message string) error {
-					dmEmails = append(dmEmails, email)
+				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
+					dmUserIDs = append(dmUserIDs, slackUserID)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
-					return "U123", nil
+					// return a predictable user ID derived from the email so we can assert counts
+					return "U-" + email, nil
 				},
 			}
 			mockResolver := &mocks.GitHubTeamResolverMock{
@@ -148,19 +149,20 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if len(dmEmails) != tc.wantDMCount {
-				t.Errorf("expected %d DMs, got %d (emails: %v)", tc.wantDMCount, len(dmEmails), dmEmails)
+			if len(dmUserIDs) != tc.wantDMCount {
+				t.Errorf("expected %d DMs, got %d (user IDs: %v)", tc.wantDMCount, len(dmUserIDs), dmUserIDs)
 			}
-			for _, want := range tc.wantDMEmails {
+			for _, wantEmail := range tc.wantDMEmails {
+				wantID := "U-" + wantEmail
 				found := false
-				for _, got := range dmEmails {
-					if got == want {
+				for _, got := range dmUserIDs {
+					if got == wantID {
 						found = true
 						break
 					}
 				}
 				if !found {
-					t.Errorf("expected DM to %s but not found in %v", want, dmEmails)
+					t.Errorf("expected DM to user ID %s (email %s) but not found in %v", wantID, wantEmail, dmUserIDs)
 				}
 			}
 		})
@@ -228,7 +230,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dmCount := 0
 			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, email, message string) error {
+				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
 					dmCount++
 					return tc.slackErr
 				},
@@ -332,14 +334,14 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dmEmails := []string{}
+			dmUserIDs := []string{}
 			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, email, message string) error {
-					dmEmails = append(dmEmails, email)
+				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
+					dmUserIDs = append(dmUserIDs, slackUserID)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
-					return "U123", nil
+					return "U-" + email, nil
 				},
 			}
 			mockResolver := &mocks.GitHubTeamResolverMock{
@@ -353,19 +355,20 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if len(dmEmails) != tc.wantDMCount {
-				t.Errorf("expected %d DMs, got %d (emails: %v)", tc.wantDMCount, len(dmEmails), dmEmails)
+			if len(dmUserIDs) != tc.wantDMCount {
+				t.Errorf("expected %d DMs, got %d (user IDs: %v)", tc.wantDMCount, len(dmUserIDs), dmUserIDs)
 			}
-			for _, want := range tc.wantEmails {
+			for _, wantEmail := range tc.wantEmails {
+				wantID := "U-" + wantEmail
 				found := false
-				for _, got := range dmEmails {
-					if got == want {
+				for _, got := range dmUserIDs {
+					if got == wantID {
 						found = true
 						break
 					}
 				}
 				if !found {
-					t.Errorf("expected DM to %s but not found in %v", want, dmEmails)
+					t.Errorf("expected DM to user ID %s (email %s) but not found in %v", wantID, wantEmail, dmUserIDs)
 				}
 			}
 		})

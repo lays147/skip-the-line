@@ -28,12 +28,12 @@ type NotificationServicer interface {
 type NotificationService struct {
 	resolver GitHubTeamResolver
 	notifier SlackNotifier
-	subs     []subscription.Subscription
+	subs     subscription.Registry
 	logger   *zap.Logger
 }
 
 // NewNotificationService constructs a NotificationService.
-func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs []subscription.Subscription) *NotificationService {
+func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry) *NotificationService {
 	return &NotificationService{
 		resolver: resolver,
 		notifier: notifier,
@@ -148,36 +148,40 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 	return s.sendToRecipients(ctx, recipients, commenterLogin, msg)
 }
 
-// sendToRecipients sends a DM to each recipient that is a subscriber, excluding the given login.
+// sendToRecipients resolves emails and Slack user IDs for the recipient set,
+// then sends a DM to each. The exclude login is skipped (e.g. the PR author
+// when notifying reviewers, or the commenter when notifying the author).
+//
+// Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendDM
 func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude string, msg string) error {
 	for username := range recipients {
 		if username == exclude {
 			continue
 		}
-		sub, ok := s.findSubscription(username)
+		email, ok := s.subs.EmailFor(username)
 		if !ok {
+			// not a subscriber — skip silently
 			continue
 		}
-		if err := s.notifier.SendDM(ctx, sub.Email, msg); err != nil {
+		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)
+		if err != nil {
+			s.logger.Warn("failed to look up Slack user",
+				zap.String("github_username", username),
+				zap.String("email", email),
+				zap.Error(err),
+			)
+			continue
+		}
+		if err := s.notifier.SendDM(ctx, slackUserID, msg); err != nil {
 			s.logger.Error("failed to send Slack DM",
 				zap.String("github_username", username),
-				zap.String("email", sub.Email),
+				zap.String("slack_user_id", slackUserID),
 				zap.Error(err),
 			)
 			// best-effort: log and continue
 		}
 	}
 	return nil
-}
-
-// findSubscription looks up a subscription by GitHub username.
-func (s *NotificationService) findSubscription(username string) (subscription.Subscription, bool) {
-	for _, sub := range s.subs {
-		if sub.GitHubUsername == username {
-			return sub, true
-		}
-	}
-	return subscription.Subscription{}, false
 }
 
 // --- Block Kit message builders ---

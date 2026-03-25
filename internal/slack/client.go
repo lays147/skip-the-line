@@ -27,20 +27,14 @@ func (c *Client) LookupUserByEmail(ctx context.Context, email string) (string, e
 	return user.ID, nil
 }
 
-// SendDM opens a direct message channel with the user identified by email and
-// posts a Block Kit message. The message parameter must be a JSON array of
-// Slack block objects (e.g. `[{"type":"section",...}]`).
-func (c *Client) SendDM(ctx context.Context, email, message string) error {
-	userID, err := c.LookupUserByEmail(ctx, email)
-	if err != nil {
-		return fmt.Errorf("slack: send DM to %q: %w", email, err)
-	}
-
+// SendDM opens a direct message channel with the given Slack user ID and posts
+// a Block Kit message. The message parameter must be a JSON array of Slack block objects.
+func (c *Client) SendDM(ctx context.Context, slackUserID, message string) error {
 	channel, _, _, err := c.api.OpenConversationContext(ctx, &slack.OpenConversationParameters{
-		Users: []string{userID},
+		Users: []string{slackUserID},
 	})
 	if err != nil {
-		return fmt.Errorf("slack: open DM channel for user %q: %w", userID, err)
+		return fmt.Errorf("slack: open DM channel for user %q: %w", slackUserID, err)
 	}
 
 	var rawBlocks []json.RawMessage

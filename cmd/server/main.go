@@ -43,7 +43,7 @@ func main() {
 	}
 	defer logger.Sync() //nolint:errcheck
 
-	// Load subscriptions.
+	// Load subscriptions into in-memory registry.
 	subs, err := subscription.Load()
 	if err != nil {
 		logger.Fatal("failed to load subscriptions", zap.Error(err))

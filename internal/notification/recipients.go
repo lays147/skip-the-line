@@ -15,6 +15,8 @@ type GitHubTeamResolver interface {
 
 // SlackNotifier sends direct messages via Slack.
 type SlackNotifier interface {
-	SendDM(ctx context.Context, email, message string) error
+	// LookupUserByEmail returns the Slack user ID for the given email address.
 	LookupUserByEmail(ctx context.Context, email string) (string, error)
+	// SendDM sends a Block Kit message to the user identified by their Slack user ID.
+	SendDM(ctx context.Context, slackUserID, message string) error
 }

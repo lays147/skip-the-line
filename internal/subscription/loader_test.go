@@ -7,21 +7,21 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	t.Run("successful parse returns correct slice", func(t *testing.T) {
-		subs, err := Load()
+	t.Run("successful parse returns non-empty registry", func(t *testing.T) {
+		reg, err := Load()
 		if err != nil {
 			t.Fatalf("Load() returned unexpected error: %v", err)
 		}
-		if len(subs) == 0 {
-			t.Fatal("Load() returned empty slice, expected at least one subscription")
+		if len(reg) == 0 {
+			t.Fatal("Load() returned empty registry, expected at least one subscription")
 		}
-		// Verify the first entry matches the known subscriptions.yaml content
-		first := subs[0]
-		if first.GitHubUsername == "" {
-			t.Error("first subscription has empty GitHubUsername")
-		}
-		if first.Email == "" {
-			t.Error("first subscription has empty Email")
+		for username, email := range reg {
+			if username == "" {
+				t.Error("registry contains entry with empty GitHub username")
+			}
+			if email == "" {
+				t.Errorf("registry entry for %q has empty email", username)
+			}
 		}
 	})
 }
@@ -60,7 +60,7 @@ func TestParseSubscriptions(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "empty yaml returns empty slice",
+			name:    "empty yaml returns empty registry",
 			input:   []byte(`subscriptions: []`),
 			wantLen: 0,
 			wantErr: false,
@@ -89,21 +89,25 @@ func TestParseSubscriptions(t *testing.T) {
 	}
 }
 
-func TestSubscriptionFields(t *testing.T) {
-	input := []byte(`subscriptions:
-  - github_username: octocat
-    email: octocat@example.com
-`)
-	var f subscriptionFile
-	if err := yaml.Unmarshal(input, &f); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestRegistryEmailFor(t *testing.T) {
+	reg := Registry{
+		"octocat": "octocat@example.com",
 	}
 
-	sub := f.Subscriptions[0]
-	if sub.GitHubUsername != "octocat" {
-		t.Errorf("GitHubUsername = %q, want %q", sub.GitHubUsername, "octocat")
-	}
-	if sub.Email != "octocat@example.com" {
-		t.Errorf("Email = %q, want %q", sub.Email, "octocat@example.com")
-	}
+	t.Run("known username returns email", func(t *testing.T) {
+		email, ok := reg.EmailFor("octocat")
+		if !ok {
+			t.Fatal("expected ok=true for known username")
+		}
+		if email != "octocat@example.com" {
+			t.Errorf("got %q, want %q", email, "octocat@example.com")
+		}
+	})
+
+	t.Run("unknown username returns not found", func(t *testing.T) {
+		_, ok := reg.EmailFor("unknown")
+		if ok {
+			t.Fatal("expected ok=false for unknown username")
+		}
+	})
 }
