@@ -14,8 +14,14 @@ type Client struct {
 }
 
 // NewClient creates a new Slack Client authenticated with the given bot token.
-func NewClient(token string) *Client {
-	return &Client{api: slack.New(token)}
+// If apiURL is non-empty the client points at that URL instead of slack.com
+// (useful for local development against a mock server).
+func NewClient(token, apiURL string) *Client {
+	opts := []slack.Option{}
+	if apiURL != "" {
+		opts = append(opts, slack.OptionAPIURL(apiURL))
+	}
+	return &Client{api: slack.New(token, opts...)}
 }
 
 // LookupUserByEmail returns the Slack user ID for the given email address.

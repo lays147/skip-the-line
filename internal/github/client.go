@@ -14,14 +14,29 @@ type Client struct {
 }
 
 // NewClient creates a new GitHub Client authenticated with the provided token.
-func NewClient(token string) *Client {
+// If baseURL is non-empty the client points at that URL instead of api.github.com
+// (useful for local development against a mock server).
+func NewClient(token, baseURL string) *Client {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(context.Background(), ts)
-	return &Client{
-		gh: github.NewClient(tc),
+	gh := github.NewClient(tc)
+
+	if baseURL != "" {
+		// WithEnterpriseURLs expects a trailing slash.
+		if baseURL[len(baseURL)-1] != '/' {
+			baseURL += "/"
+		}
+		var err error
+		gh, err = gh.WithEnterpriseURLs(baseURL, baseURL)
+		if err != nil {
+			// baseURL is validated at startup via config; panic is appropriate here.
+			panic(fmt.Sprintf("github: invalid base URL %q: %v", baseURL, err))
+		}
 	}
+
+	return &Client{gh: gh}
 }
 
 // GetTeamMembers returns all member usernames for the given org/team slug.

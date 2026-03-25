@@ -1,4 +1,4 @@
-.PHONY: up down logs test test-cover generate build lint
+.PHONY: up down logs test test-cover generate build lint send-event
 
 ## up: start the full stack locally with Docker Compose
 up:
@@ -32,3 +32,9 @@ build:
 ## lint: run golangci-lint
 lint:
 	golangci-lint run ./...
+
+## send-event: send a sample webhook to the running local app.
+##   EVENT=pull_request|pull_request_review|pull_request_review_comment
+##   Example: make send-event EVENT=pull_request_review
+send-event:
+	@EVENT=$(EVENT) ./scripts/send-webhook.sh $(EVENT)

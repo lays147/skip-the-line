@@ -62,8 +62,8 @@ func main() {
 	}
 
 	// Construct clients and services.
-	ghClient := githubclient.NewClient(cfg.GitHubToken)
-	slClient := slackclient.NewClient(cfg.SlackBotToken)
+	ghClient := githubclient.NewClient(cfg.GitHubToken, cfg.GitHubAPIURL)
+	slClient := slackclient.NewClient(cfg.SlackBotToken, cfg.SlackAPIURL)
 	notifSvc := notification.NewNotificationService(ghClient, slClient, subs)
 
 	// Construct handlers.

@@ -11,6 +11,9 @@ type Config struct {
 	LogEnv                   string `env:"LOG_ENV"                       envDefault:"prod"`
 	OTELExporterOTLPEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	OTELServiceName          string `env:"OTEL_SERVICE_NAME"             envDefault:"github-webhook-notifier"`
+	// Optional overrides for local development / testing against mock servers.
+	SlackAPIURL  string `env:"SLACK_API_URL"`
+	GitHubAPIURL string `env:"GITHUB_API_URL"`
 }
 
 // Load parses environment variables into a Config struct.

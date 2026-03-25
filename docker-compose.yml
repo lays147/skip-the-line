@@ -11,9 +11,16 @@ services:
       SLACK_BOT_TOKEN: xoxb-test-token
       PORT: "8080"
       LOG_ENV: dev
+      # Point clients at local mock servers instead of the real APIs.
+      SLACK_API_URL: http://mock-slack:3000/api/
+      GITHUB_API_URL: http://mock-github:4000/
+    depends_on:
+      - mock-slack
+      - mock-github
     networks:
       - skip-the-line
 
+  # Logs all incoming Slack API calls (users.lookupByEmail, chat.postMessage, etc.)
   mock-slack:
     image: mendhak/http-https-echo:latest
     environment:
@@ -23,25 +30,15 @@ services:
     networks:
       - skip-the-line
 
-  webhook-sender:
-    image: alpine/curl
-    depends_on:
-      app:
-        condition: service_started
+  # Logs all incoming GitHub API calls (team membership, etc.)
+  mock-github:
+    image: mendhak/http-https-echo:latest
+    environment:
+      HTTP_PORT: "4000"
+    ports:
+      - "4000:4000"
     networks:
       - skip-the-line
-    entrypoint:
-      - sh
-      - -c
-      - |
-        sleep 5
-        PAYLOAD='{"action":"review_requested","pull_request":{"number":1,"title":"Test PR","html_url":"https://github.com/org/repo/pull/1","user":{"login":"author"},"requested_reviewers":[{"login":"reviewer1"}]},"repository":{"full_name":"org/repo","owner":{"login":"org"}}}'
-        SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac test-secret | awk '{print "sha256="$2}')
-        curl -s -X POST http://app:8080/webhook \
-          -H 'Content-Type: application/json' \
-          -H "X-GitHub-Event: pull_request" \
-          -H "X-Hub-Signature-256: $SIG" \
-          -d "$PAYLOAD"
 
 networks:
   skip-the-line:
