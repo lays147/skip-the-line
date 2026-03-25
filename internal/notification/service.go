@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -92,10 +93,10 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 		}
 	}
 
-	// Exclude PR author and send DMs.
-	prURL := e.GetPullRequest().GetHTMLURL()
+	prNumber := e.GetPullRequest().GetNumber()
 	prTitle := e.GetPullRequest().GetTitle()
-	msg := fmt.Sprintf("You have been requested to review a pull request: [%s](%s)", prTitle, prURL)
+	prURL := e.GetPullRequest().GetHTMLURL()
+	msg := buildReviewRequestedBlocks(authorLogin, prNumber, prTitle, prURL)
 
 	return s.sendToRecipients(ctx, recipients, authorLogin, msg)
 }
@@ -110,15 +111,14 @@ func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *gith
 		return nil
 	}
 
-	prURL := e.GetPullRequest().GetHTMLURL()
+	prNumber := e.GetPullRequest().GetNumber()
 	prTitle := e.GetPullRequest().GetTitle()
-	reviewerName := reviewerLogin
-	msg := fmt.Sprintf("%s submitted a review on your pull request: [%s](%s)", reviewerName, prTitle, prURL)
+	prURL := e.GetPullRequest().GetHTMLURL()
+	approved := e.GetReview().GetState() == "approved"
+	msg := buildReviewSubmittedBlocks(reviewerLogin, prNumber, prTitle, prURL, approved)
 
-	recipients := map[string]struct{}{
-		authorLogin: {},
-	}
-	return s.sendToRecipients(ctx, recipients, "" /* no exclusion beyond reviewer check above */, msg)
+	recipients := map[string]struct{}{authorLogin: {}}
+	return s.sendToRecipients(ctx, recipients, "", msg)
 }
 
 // handleReviewComment notifies the PR author and any mentioned subscribers.
@@ -127,24 +127,22 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 	commenterLogin := e.GetComment().GetUser().GetLogin()
 
 	recipients := make(map[string]struct{})
-
-	// Always notify the PR author.
 	if authorLogin != "" {
 		recipients[authorLogin] = struct{}{}
 	}
 
 	// Parse @mentions from the comment body.
 	body := e.GetComment().GetBody()
-	matches := mentionRegex.FindAllStringSubmatch(body, -1)
-	for _, match := range matches {
+	for _, match := range mentionRegex.FindAllStringSubmatch(body, -1) {
 		if len(match) > 1 {
 			recipients[match[1]] = struct{}{}
 		}
 	}
 
-	prURL := e.GetPullRequest().GetHTMLURL()
+	prNumber := e.GetPullRequest().GetNumber()
 	prTitle := e.GetPullRequest().GetTitle()
-	msg := fmt.Sprintf("%s commented on your pull request: [%s](%s)", commenterLogin, prTitle, prURL)
+	prURL := e.GetPullRequest().GetHTMLURL()
+	msg := buildReviewCommentBlocks(commenterLogin, prNumber, prTitle, prURL)
 
 	// Exclude the commenter from notifications.
 	return s.sendToRecipients(ctx, recipients, commenterLogin, msg)
@@ -180,4 +178,132 @@ func (s *NotificationService) findSubscription(username string) (subscription.Su
 		}
 	}
 	return subscription.Subscription{}, false
+}
+
+// --- Block Kit message builders ---
+
+// buildReviewRequestedBlocks returns a Block Kit JSON array for a review_requested event.
+func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) string {
+	blocks := []any{
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*Your review was requested by <@%s>*", requesterLogin),
+			},
+		},
+		map[string]any{"type": "divider"},
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			},
+		},
+		map[string]any{
+			"type": "actions",
+			"elements": []any{
+				map[string]any{
+					"type": "button",
+					"text": map[string]any{
+						"type":  "plain_text",
+						"text":  "Review now!",
+						"emoji": true,
+					},
+					"value": prURL,
+					"url":   prURL,
+				},
+			},
+		},
+	}
+	return mustMarshalBlocks(blocks)
+}
+
+// buildReviewSubmittedBlocks returns a Block Kit JSON array for a pull_request_review submitted event.
+// When approved is true, the message indicates the PR is ready to merge.
+func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) string {
+	headerText := fmt.Sprintf("*<@%s> submitted a review on your pull request*", reviewerLogin)
+	buttonText := "View review"
+	if approved {
+		headerText = fmt.Sprintf("*<@%s> approved your pull request — it's ready to merge! :rocket:*", reviewerLogin)
+		buttonText = "Merge now!"
+	}
+	blocks := []any{
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": headerText,
+			},
+		},
+		map[string]any{"type": "divider"},
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			},
+		},
+		map[string]any{
+			"type": "actions",
+			"elements": []any{
+				map[string]any{
+					"type": "button",
+					"text": map[string]any{
+						"type":  "plain_text",
+						"text":  buttonText,
+						"emoji": true,
+					},
+					"value": prURL,
+					"url":   prURL,
+				},
+			},
+		},
+	}
+	return mustMarshalBlocks(blocks)
+}
+
+// buildReviewCommentBlocks returns a Block Kit JSON array for a pull_request_review_comment event.
+func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) string {
+	blocks := []any{
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*<@%s> commented on your pull request*", commenterLogin),
+			},
+		},
+		map[string]any{"type": "divider"},
+		map[string]any{
+			"type": "section",
+			"text": map[string]any{
+				"type": "mrkdwn",
+				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			},
+		},
+		map[string]any{
+			"type": "actions",
+			"elements": []any{
+				map[string]any{
+					"type": "button",
+					"text": map[string]any{
+						"type":  "plain_text",
+						"text":  "View comment",
+						"emoji": true,
+					},
+					"value": prURL,
+					"url":   prURL,
+				},
+			},
+		},
+	}
+	return mustMarshalBlocks(blocks)
+}
+
+func mustMarshalBlocks(blocks []any) string {
+	b, err := json.Marshal(blocks)
+	if err != nil {
+		panic(fmt.Sprintf("notification: failed to marshal blocks: %v", err))
+	}
+	return string(b)
 }

@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/slack-go/slack"
@@ -27,7 +28,8 @@ func (c *Client) LookupUserByEmail(ctx context.Context, email string) (string, e
 }
 
 // SendDM opens a direct message channel with the user identified by email and
-// posts message to that channel.
+// posts a Block Kit message. The message parameter must be a JSON array of
+// Slack block objects (e.g. `[{"type":"section",...}]`).
 func (c *Client) SendDM(ctx context.Context, email, message string) error {
 	userID, err := c.LookupUserByEmail(ctx, email)
 	if err != nil {
@@ -41,7 +43,21 @@ func (c *Client) SendDM(ctx context.Context, email, message string) error {
 		return fmt.Errorf("slack: open DM channel for user %q: %w", userID, err)
 	}
 
-	_, _, err = c.api.PostMessageContext(ctx, channel.ID, slack.MsgOptionText(message, false))
+	var rawBlocks []json.RawMessage
+	if err := json.Unmarshal([]byte(message), &rawBlocks); err != nil {
+		return fmt.Errorf("slack: invalid block kit JSON: %w", err)
+	}
+
+	blocks := make([]slack.Block, 0, len(rawBlocks))
+	for _, raw := range rawBlocks {
+		block, err := slack.UnmarshalBlock(raw)
+		if err != nil {
+			return fmt.Errorf("slack: unmarshal block: %w", err)
+		}
+		blocks = append(blocks, block)
+	}
+
+	_, _, err = c.api.PostMessageContext(ctx, channel.ID, slack.MsgOptionBlocks(blocks...))
 	if err != nil {
 		return fmt.Errorf("slack: post message to channel %q: %w", channel.ID, err)
 	}
