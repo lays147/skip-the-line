@@ -1,0 +1,5 @@
+subscriptions:
+  - github_username: octocat
+    email: octocat@example.com
+  - github_username: monalisa
+    email: monalisa@example.com

@@ -1,0 +1,22 @@
+# Go binaries and build output
+skip-the-line
+*.exe
+dist/
+
+# Go test cache and coverage
+*.test
+coverage.out
+coverage.html
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db

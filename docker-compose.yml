@@ -1,0 +1,48 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      GITHUB_WEBHOOK_SECRET: test-secret
+      GITHUB_TOKEN: test-token
+      SLACK_BOT_TOKEN: xoxb-test-token
+      PORT: "8080"
+      LOG_ENV: dev
+    networks:
+      - skip-the-line
+
+  mock-slack:
+    image: mendhak/http-https-echo:latest
+    environment:
+      HTTP_PORT: "3000"
+    ports:
+      - "3000:3000"
+    networks:
+      - skip-the-line
+
+  webhook-sender:
+    image: alpine/curl
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - skip-the-line
+    entrypoint:
+      - sh
+      - -c
+      - |
+        sleep 5
+        PAYLOAD='{"action":"review_requested","pull_request":{"number":1,"title":"Test PR","html_url":"https://github.com/org/repo/pull/1","user":{"login":"author"},"requested_reviewers":[{"login":"reviewer1"}]},"repository":{"full_name":"org/repo","owner":{"login":"org"}}}'
+        SIG=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac test-secret | awk '{print "sha256="$2}')
+        curl -s -X POST http://app:8080/webhook \
+          -H 'Content-Type: application/json' \
+          -H "X-GitHub-Event: pull_request" \
+          -H "X-Hub-Signature-256: $SIG" \
+          -d "$PAYLOAD"
+
+networks:
+  skip-the-line:
+    driver: bridge

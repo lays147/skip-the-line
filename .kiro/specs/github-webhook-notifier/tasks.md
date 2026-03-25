@@ -6,8 +6,8 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
 
 ## Tasks
 
-- [ ] 1. Project scaffolding
-  - Create `go.mod` with module name `github.com/skip-the-line` and Go 1.22+
+- [x] 1. Project scaffolding
+  - Create `go.mod` with module name `github.com/skip-the-line` and Go 1.26.1
   - Add dependencies: `google/go-github/v62`, `slack-go/slack`, `go-chi/chi/v5`, `caarlos0/env`, `matryer/moq`, `go.uber.org/zap`, `go.opentelemetry.io/otel`, `gopkg.in/yaml.v3`
   - Create directory tree: `cmd/server/`, `internal/webhook/`, `internal/notification/`, `internal/github/`, `internal/slack/`, `internal/subscription/`, `internal/health/`, `internal/metrics/`, `internal/mocks/`
   - Create `Makefile` with targets: `up`, `down`, `logs`, `test`, `test-cover`, `generate`, `build`, `lint`
@@ -17,64 +17,64 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
   - Create `subscriptions.yaml` with example entries (`github_username`, `email` fields)
   - _Requirements: 3.1, 3.2, 8.1, 15.1_
 
-- [ ] 2. Config package
-  - [ ] 2.1 Implement `internal/config/config.go` with `Config` struct using `caarlos0/env` tags
+- [x] 2. Config package
+  - [x] 2.1 Implement `internal/config/config.go` with `Config` struct using `caarlos0/env` tags
     - Fields: `GitHubWebhookSecret` (required), `GitHubToken` (required), `SlackBotToken` (required), `Port` (default `8080`), `LogEnv` (default `prod`), `OTELExporterOTLPEndpoint`, `OTELServiceName` (default `github-webhook-notifier`)
     - Export a `Load() (Config, error)` function that calls `env.Parse`
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 12.6_
 
-  - [ ]* 2.2 Write unit tests for `Config` loading
+  - [x] 2.2 Write unit tests for `Config` loading
     - Test that missing required variables return an error
     - Test that optional variables use their defaults
     - _Requirements: 8.3, 8.4_
 
-- [ ] 3. Subscription loader
-  - [ ] 3.1 Implement `internal/subscription/loader.go`
+- [x] 3. Subscription loader
+  - [x] 3.1 Implement `internal/subscription/loader.go`
     - Define `Subscription` struct with `GitHubUsername string \`yaml:"github_username"\`` and `Email string \`yaml:"email"\``
     - Embed `subscriptions.yaml` via `//go:embed subscriptions.yaml` and expose `Load() ([]Subscription, error)`
     - Return a fatal-worthy error if the file is missing or unparseable
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-  - [ ]* 3.2 Write unit tests for subscription loader
+  - [x] 3.2 Write unit tests for subscription loader
     - Test successful YAML parse returning correct slice
     - Test malformed YAML returns error
     - _Requirements: 3.1, 3.3_
 
-- [ ] 4. Notification interfaces and mock directives
-  - [ ] 4.1 Implement `internal/notification/recipients.go`
+- [x] 4. Notification interfaces and mock directives
+  - [x] 4.1 Implement `internal/notification/recipients.go`
     - Define `GitHubTeamResolver` interface with only `GetTeamMembers(ctx context.Context, org, team string) ([]string, error)`
     - Define `SlackNotifier` interface (`SendDM`, `LookupUserByEmail`)
     - Add `//go:generate moq` directives for both interfaces targeting `../mocks/`
     - _Requirements: 4.1, 5.1_
 
-  - [ ] 4.2 Implement `internal/notification/service.go`
+  - [x] 4.2 Implement `internal/notification/service.go`
     - Define `NotificationServicer` interface with `Notify(ctx context.Context, eventType string, event any) error`
     - The `event` parameter accepts typed SDK structs: `*github.PullRequestEvent`, `*github.PullRequestReviewEvent`, `*github.PullRequestReviewCommentEvent`
     - Add `//go:generate moq` directive for `NotificationServicer` targeting `../mocks/`
     - _Requirements: 6.1, 6.2, 6.3_
 
-- [ ] 5. GitHub client
-  - [ ] 5.1 Implement `internal/github/client.go`
+- [x] 5. GitHub client
+  - [x] 5.1 Implement `internal/github/client.go`
     - Define `Client` struct wrapping `go-github` SDK, authenticated with `GitHubToken`
     - Implement `GetTeamMembers(ctx, org, team string) ([]string, error)` — list all members of a GitHub team
     - Wrap errors with `fmt.Errorf("...: %w", err)`
     - _Requirements: 4.1, 4.2, 4.3_
 
-- [ ] 6. Slack client
-  - [ ] 6.1 Implement `internal/slack/client.go`
+- [x] 6. Slack client
+  - [x] 6.1 Implement `internal/slack/client.go`
     - Define `Client` struct wrapping `slack-go/slack`, authenticated with `SlackBotToken`
     - Implement `LookupUserByEmail(ctx, email string) (string, error)` — returns Slack user ID
     - Implement `SendDM(ctx, email, message string) error` — opens a DM channel and posts a message
     - Wrap errors with `fmt.Errorf("...: %w", err)`
     - _Requirements: 5.1, 5.2, 5.3, 6.1_
 
-- [ ] 7. Mock generation
+- [x] 7. Mock generation
   - Run `go generate ./...` to produce mocks in `internal/mocks/` for `GitHubTeamResolver`, `SlackNotifier`, and `NotificationServicer`
   - Commit generated mock files so CI does not require a `go generate` step
   - _Requirements: (supports all unit test tasks)_
 
 - [ ] 8. Notification service implementation
-  - [ ] 8.1 Implement `NotificationService` struct in `internal/notification/service.go`
+  - [x] 8.1 Implement `NotificationService` struct in `internal/notification/service.go`
     - Constructor `NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs []subscription.Subscription) *NotificationService`
     - Implement `Notify(ctx, eventType string, event any) error` using a type switch on `event`:
       - `*github.PullRequestEvent` with action `review_requested`: expand team reviewers via `GetTeamMembers`, collect individual reviewer usernames, deduplicate GitHub usernames before Slack lookup, exclude PR author, look up each subscriber's email in `subs`, call `SlackNotifier.SendDM`
@@ -83,24 +83,24 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
     - Return HTTP 200 no-op for unrecognised event type/action combinations
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2_
 
-  - [ ]* 8.2 Write unit tests for `NotificationService.Notify` — `pull_request review_requested`
+  - [x] 8.2 Write unit tests for `NotificationService.Notify` — `pull_request review_requested`
     - Use `mocks.GitHubTeamResolverMock` and `mocks.SlackNotifierMock`
     - Table-driven: single reviewer, team reviewer expanded to members, author excluded, duplicate recipients deduplicated
     - Pass `*github.PullRequestEvent` directly to `Notify`
     - _Requirements: 6.2, 7.1, 7.2_
 
-  - [ ]* 8.3 Write unit tests for `NotificationService.Notify` — `pull_request_review submitted`
+  - [x] 8.3 Write unit tests for `NotificationService.Notify` — `pull_request_review submitted`
     - Table-driven: reviewer is not notified, author is notified, Slack error is logged and skipped
     - Pass `*github.PullRequestReviewEvent` directly to `Notify`
     - _Requirements: 6.5, 5.3_
 
-  - [ ]* 8.4 Write unit tests for `NotificationService.Notify` — `pull_request_review_comment`
+  - [x] 8.4 Write unit tests for `NotificationService.Notify` — `pull_request_review_comment`
     - Table-driven: author notified, mentioned subscribers notified, duplicates deduplicated
     - Pass `*github.PullRequestReviewCommentEvent` directly to `Notify`
     - _Requirements: 6.6, 7.2_
 
 - [ ] 9. Webhook handler
-  - [ ] 9.1 Implement `internal/webhook/handler.go`
+  - [x] 9.1 Implement `internal/webhook/handler.go`
     - Define `Handler` struct with `NotificationServicer`, `webhookSecret`, and OTel counter fields
     - Implement `ServeHTTP` for `POST /webhook`:
       - Validate `X-Hub-Signature-256` using `github.ValidatePayload(r, []byte(secret))`; return HTTP 401 on failure
@@ -112,26 +112,26 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
     - Increment `webhook_events_total` OTel counter with `event_type` label after successful validation
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 10.1, 10.2, 12.1, 12.2, 12.3_
 
-  - [ ]* 9.2 Write unit tests for webhook handler
+  - [x] 9.2 Write unit tests for webhook handler
     - Table-driven: valid signature dispatches to service, invalid signature returns 401, bad body returns 400, service error returns 500, unsupported event returns 200
     - Use `mocks.NotificationServicerMock`
     - _Requirements: 1.2, 1.3, 1.4, 2.1, 2.2, 10.1, 10.2_
 
 - [ ] 10. Health handler
-  - [ ] 10.1 Implement `internal/health/handler.go`
+  - [x] 10.1 Implement `internal/health/handler.go`
     - Define `Handler` struct with an `atomic.Bool` ready flag
     - `GET /healthz` always returns HTTP 200 `{"status":"ok"}`
     - `GET /readyz` returns HTTP 200 `{"status":"ready"}` when ready flag is set, HTTP 503 `{"status":"not ready"}` otherwise
     - Export `SetReady(bool)` to flip the flag after all dependencies are initialised
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
 
-  - [ ]* 10.2 Write unit tests for health handler
+  - [x] 10.2 Write unit tests for health handler
     - Test `/healthz` always 200
     - Test `/readyz` 503 before `SetReady(true)`, 200 after
     - _Requirements: 13.2, 13.4, 13.5_
 
 - [ ] 11. OpenTelemetry metrics setup
-  - [ ] 11.1 Implement `internal/metrics/metrics.go`
+  - [x] 11.1 Implement `internal/metrics/metrics.go`
     - Initialize OTel SDK with service name from `Config.OTELServiceName`
     - Register a `webhook_events_total` counter instrument with `event_type` attribute
     - Expose a Prometheus-compatible `/metrics` HTTP handler using `go.opentelemetry.io/otel/exporters/prometheus`
@@ -139,20 +139,20 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
     - Export `NewMeterProvider(cfg Config) (*sdkmetric.MeterProvider, http.Handler, error)` and `WebhookEventsCounter(mp *sdkmetric.MeterProvider) metric.Int64Counter`
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
 
-- [ ] 12. Checkpoint — core packages complete
+- [x] 12. Checkpoint — core packages complete
   - Ensure `go build ./...` succeeds and all existing tests pass with `go test ./...`
   - Ask the user if any questions arise before proceeding to containerization and wiring.
 
-- [ ] 13. Dockerfile
+- [x] 13. Dockerfile
   - Create `Dockerfile` with a multi-stage build
-    - Builder stage: `golang:1.22-alpine`, copies source, runs `CGO_ENABLED=0 go build -o /skip-the-line ./cmd/server`
+    - Builder stage: `golang:1.26.1-alpine`, copies source, runs `CGO_ENABLED=0 go build -o /skip-the-line ./cmd/server`
     - Final stage: `gcr.io/distroless/static:nonroot`, copies binary only
     - `EXPOSE 8080`
     - `USER nonroot:nonroot` (distroless nonroot UID 65532)
     - `ENTRYPOINT ["/skip-the-line"]`
   - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
 
-- [ ] 14. Docker Compose
+- [x] 14. Docker Compose
   - Create `docker-compose.yml` defining four services on a shared `skip-the-line` network:
     - `app`: built from local `Dockerfile`, port `8080:8080`, env vars wired to mock services
     - `mock-slack`: lightweight HTTP server (e.g., `mockserver` or a minimal Go binary in `tools/mock-slack/`) that accepts Slack API calls and logs payloads
@@ -162,7 +162,7 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
   - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
 
 - [ ] 15. Main wiring (`cmd/server/main.go`)
-  - [ ] 15.1 Implement `cmd/server/main.go`
+  - [x] 15.1 Implement `cmd/server/main.go`
     - Call `config.Load()`, fatal-log on error
     - Initialise `zap` logger (dev or prod mode based on `Config.LogEnv`)
     - Call `subscription.Load()`, fatal-log on error
@@ -176,7 +176,7 @@ Implement a Go webhook receiver that listens for GitHub pull request events and 
     - Force-exit with a warning log if the shutdown timeout is exceeded
     - _Requirements: 1.1, 8.1, 8.4, 9.1, 9.2, 9.3, 11.1, 11.2, 11.3, 11.4, 11.5, 13.4_
 
-- [ ] 16. Final checkpoint — Ensure all tests pass
+- [x] 16. Final checkpoint — Ensure all tests pass
   - Run `go test ./...` and confirm all tests pass.
   - Run `go build ./...` and confirm the binary compiles.
   - Ask the user if any questions arise.
