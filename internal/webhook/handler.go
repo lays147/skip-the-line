@@ -8,6 +8,10 @@ import (
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/notification"
 	"github.com/skip-the-line/internal/subscription"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 )
 
@@ -33,15 +37,25 @@ func NewHandler(svc notification.NotificationServicer, secret string, m *metrics
 
 // ServeHTTP handles POST /webhook requests.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+	// Start a root span for the full webhook lifecycle.
+	ctx, span := otel.Tracer("github.com/skip-the-line").Start(ctx, "webhook.ServeHTTP")
+	defer span.End()
+	r = r.WithContext(ctx)
+
 	// Validate signature and read body.
 	body, err := github.ValidatePayload(r, []byte(h.webhookSecret))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "invalid signature")
 		h.logger.Warn("invalid webhook signature", zap.Error(err))
 		writeError(w, http.StatusUnauthorized, "invalid signature")
 		return
 	}
 
 	eventType := r.Header.Get("X-GitHub-Event")
+	span.SetAttributes(attribute.String("event_type", eventType))
 	h.metrics.RecordWebhookEvent(r.Context(), eventType)
 
 	// Parse the webhook payload into a typed SDK struct.

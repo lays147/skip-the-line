@@ -43,6 +43,12 @@ func main() {
 		logger.Fatal("failed to load subscriptions", zap.Error(err))
 	}
 
+	// Initialise OTel trace provider (sets global TracerProvider + propagator).
+	tp, err := newTracerProvider(cfg)
+	if err != nil {
+		logger.Fatal("failed to initialise trace provider", zap.Error(err))
+	}
+
 	// Initialise OTel meter provider.
 	mp, err := metrics.NewMeterProvider(cfg)
 	if err != nil {
@@ -97,5 +103,9 @@ func main() {
 
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Warn("shutdown timeout exceeded, forcing exit", zap.Error(err))
+	}
+
+	if err := tp.Shutdown(ctx); err != nil {
+		logger.Warn("trace provider shutdown error", zap.Error(err))
 	}
 }
