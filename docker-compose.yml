@@ -10,13 +10,29 @@ services:
       GITHUB_TOKEN: test-token
       SLACK_BOT_TOKEN: xoxb-test-token
       PORT: "8080"
-      LOG_ENV: dev
+      LOG_LEVEL: info
+      ENVIRONMENT: dev
+      OTEL_SERVICE_NAME: skip-the-line
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-lgtm:4317
       # Point clients at local mock servers instead of the real APIs.
       SLACK_API_URL: http://mock-slack:3000/api/
       GITHUB_API_URL: http://mock-github:4000/
     depends_on:
       - mock-slack
       - mock-github
+      - otel-lgtm
+    networks:
+      - skip-the-line
+
+  # All-in-one observability stack: OTel Collector, Prometheus, Loki, Tempo, Grafana.
+  # Grafana UI: http://localhost:3001 (admin/admin)
+  # OTLP gRPC collector: localhost:4317
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3001:3000"  # Grafana UI (3000 is taken by mock-slack)
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
     networks:
       - skip-the-line
 

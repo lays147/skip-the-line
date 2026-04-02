@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/skip-the-line/internal/mocks"
+	"github.com/skip-the-line/internal/subscription"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 )
@@ -53,9 +55,38 @@ func pullRequestPayload() []byte {
 }
 
 func newTestHandler(svc *mocks.NotificationServicerMock) *Handler {
+	return newTestHandlerWithSubs(svc, subscription.Registry{})
+}
+
+func newTestHandlerWithSubs(svc *mocks.NotificationServicerMock, subs subscription.Registry) *Handler {
 	mp := noop.NewMeterProvider()
 	counter, _ := mp.Meter("test").Int64Counter("webhook_events_total")
-	return NewHandler(svc, testSecret, counter, noopLogger())
+	histogram, _ := mp.Meter("test").Float64Histogram("pr_merge_duration_seconds")
+	return NewHandler(svc, testSecret, counter, histogram, subs, noopLogger())
+}
+
+// mergedPRPayload returns a pull_request closed+merged event JSON body.
+func mergedPRPayload(openedAt, mergedAt time.Time) []byte {
+	payload := map[string]any{
+		"action": "closed",
+		"pull_request": map[string]any{
+			"number":    2,
+			"title":     "Merged PR",
+			"html_url":  "https://github.com/org/repo/pull/2",
+			"merged":    true,
+			"created_at": openedAt.Format(time.RFC3339),
+			"merged_at":  mergedAt.Format(time.RFC3339),
+			"user": map[string]any{
+				"login": "author",
+			},
+		},
+		"repository": map[string]any{
+			"full_name": "org/repo",
+			"owner":     map[string]any{"login": "org"},
+		},
+	}
+	b, _ := json.Marshal(payload)
+	return b
 }
 
 func noopLogger() *zap.Logger {
@@ -161,6 +192,62 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				if _, ok := respBody["error"]; !ok {
 					t.Error("error response missing 'error' field")
 				}
+			}
+		})
+	}
+}
+
+func TestHandler_PRMergeDuration(t *testing.T) {
+	openedAt := time.Now().Add(-48 * time.Hour)
+	mergedAt := time.Now()
+
+	tests := []struct {
+		name       string
+		subs       subscription.Registry
+		body       []byte
+		eventType  string
+		wantStatus int
+	}{
+		{
+			name:       "merged PR from subscribed author records duration",
+			subs:       subscription.Registry{"author": "author@example.com"},
+			body:       mergedPRPayload(openedAt, mergedAt),
+			eventType:  "pull_request",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "merged PR from unsubscribed author records duration",
+			subs:       subscription.Registry{},
+			body:       mergedPRPayload(openedAt, mergedAt),
+			eventType:  "pull_request",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "non-merged closed PR does not record duration",
+			subs:       subscription.Registry{"author": "author@example.com"},
+			body:       pullRequestPayload(), // action=review_requested, not closed+merged
+			eventType:  "pull_request",
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockSvc := &mocks.NotificationServicerMock{
+				NotifyFunc: func(_ context.Context, _ string, _ any) error { return nil },
+			}
+			h := newTestHandlerWithSubs(mockSvc, tc.subs)
+
+			req := httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-GitHub-Event", tc.eventType)
+			req.Header.Set("X-Hub-Signature-256", signPayload([]byte(testSecret), tc.body))
+
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req) // must not panic
+
+			if rr.Code != tc.wantStatus {
+				t.Errorf("expected status %d, got %d", tc.wantStatus, rr.Code)
 			}
 		})
 	}

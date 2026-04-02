@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/notification"
+	"github.com/skip-the-line/internal/subscription"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
@@ -13,19 +15,23 @@ import (
 
 // Handler handles incoming GitHub webhook requests.
 type Handler struct {
-	svc           notification.NotificationServicer
-	webhookSecret string
-	counter       metric.Int64Counter
-	logger        *zap.Logger
+	svc            notification.NotificationServicer
+	webhookSecret  string
+	counter        metric.Int64Counter
+	mergeHistogram metric.Float64Histogram
+	subs           subscription.Registry
+	logger         *zap.Logger
 }
 
 // NewHandler constructs a new webhook Handler.
-func NewHandler(svc notification.NotificationServicer, secret string, counter metric.Int64Counter, logger *zap.Logger) *Handler {
+func NewHandler(svc notification.NotificationServicer, secret string, counter metric.Int64Counter, mergeHistogram metric.Float64Histogram, subs subscription.Registry, logger *zap.Logger) *Handler {
 	return &Handler{
-		svc:           svc,
-		webhookSecret: secret,
-		counter:       counter,
-		logger:        logger,
+		svc:            svc,
+		webhookSecret:  secret,
+		counter:        counter,
+		mergeHistogram: mergeHistogram,
+		subs:           subs,
+		logger:         logger,
 	}
 }
 
@@ -56,6 +62,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Return 200 no-op for unsupported event types.
 		w.WriteHeader(http.StatusOK)
 		return
+	}
+
+	// Record PR merge duration when a pull_request is closed and merged.
+	if pr, ok := event.(*github.PullRequestEvent); ok &&
+		pr.GetAction() == "closed" && pr.GetPullRequest().GetMerged() {
+		authorLogin := pr.GetPullRequest().GetUser().GetLogin()
+		_, subscribed := h.subs.EmailFor(authorLogin)
+		metrics.RecordPRMergeDuration(
+			r.Context(),
+			h.mergeHistogram,
+			pr.GetPullRequest().GetCreatedAt().Time,
+			pr.GetPullRequest().GetMergedAt().Time,
+			subscribed,
+		)
 	}
 
 	// Dispatch to notification service.

@@ -55,13 +55,19 @@ func main() {
 		logger.Fatal("failed to create webhook_events_total counter", zap.Error(err))
 	}
 
+	// Create pr_merge_duration_seconds histogram.
+	mergeHistogram, err := metrics.PRMergeHistogram(mp)
+	if err != nil {
+		logger.Fatal("failed to create pr_merge_duration_seconds histogram", zap.Error(err))
+	}
+
 	// Construct clients and services.
 	ghClient := githubclient.NewClient(cfg.GitHubToken, cfg.GitHubAPIURL)
 	slClient := slackclient.NewClient(cfg.SlackBotToken, cfg.SlackAPIURL)
 	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger)
 
 	// Construct handlers.
-	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, counter, logger)
+	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, counter, mergeHistogram, subs, logger)
 	healthHandler := health.NewHandler()
 
 	// Register routes.

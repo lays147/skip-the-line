@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -55,4 +56,28 @@ func WebhookEventsCounter(mp *sdkmetric.MeterProvider) (metric.Int64Counter, err
 		return nil, fmt.Errorf("create webhook_events_total counter: %w", err)
 	}
 	return counter, nil
+}
+
+// PRMergeHistogram returns a Float64Histogram instrument named "pr_merge_duration_seconds"
+// scoped to the given MeterProvider.
+func PRMergeHistogram(mp *sdkmetric.MeterProvider) (metric.Float64Histogram, error) {
+	meter := mp.Meter("github.com/skip-the-line")
+	h, err := meter.Float64Histogram(
+		"pr_merge_duration_seconds",
+		metric.WithDescription("Time from PR opened to merged, in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create pr_merge_duration_seconds histogram: %w", err)
+	}
+	return h, nil
+}
+
+// RecordPRMergeDuration records a single observation on the PR merge histogram.
+// openedAt and mergedAt are the PR creation and merge timestamps.
+// authorSubscribed indicates whether the PR author is registered in the subscription registry.
+func RecordPRMergeDuration(ctx context.Context, h metric.Float64Histogram, openedAt, mergedAt time.Time, authorSubscribed bool) {
+	h.Record(ctx, mergedAt.Sub(openedAt).Seconds(), metric.WithAttributes(
+		attribute.Bool("subscribed", authorSubscribed),
+	))
 }
