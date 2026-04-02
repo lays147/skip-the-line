@@ -41,7 +41,7 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 	msg := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
 
 	// Exclude the commenter from notifications.
-	return s.sendToRecipients(ctx, recipients, commenterLogin, msg)
+	return s.sendToRecipients(ctx, recipients, commenterLogin, msg, "pull_request_review_comment")
 }
 
 func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) string {

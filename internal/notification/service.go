@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/subscription"
 	"go.uber.org/zap"
 )
@@ -29,15 +30,17 @@ type NotificationService struct {
 	notifier SlackNotifier
 	subs     subscription.Registry
 	logger   *zap.Logger
+	metrics  *metrics.Metrics
 }
 
 // NewNotificationService constructs a NotificationService.
-func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry, logger *zap.Logger) *NotificationService {
+func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry, logger *zap.Logger, m *metrics.Metrics) *NotificationService {
 	return &NotificationService{
 		resolver: resolver,
 		notifier: notifier,
 		subs:     subs,
 		logger:   logger,
+		metrics:  m,
 	}
 }
 
@@ -64,13 +67,14 @@ func (s *NotificationService) Notify(ctx context.Context, eventType string, even
 // when notifying reviewers, or the commenter when notifying the author).
 //
 // Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendDM
-func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude string, msg string) error {
+func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude, msg, eventType string) error {
 	for username := range recipients {
 		if username == exclude {
 			continue
 		}
 		email, ok := s.subs.EmailFor(username)
 		if !ok {
+			// not a subscriber — skip silently
 			continue
 		}
 		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)
@@ -80,6 +84,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 				zap.String("email", email),
 				zap.Error(err),
 			)
+			s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeSlackLookupFailed)
 			continue
 		}
 		if err := s.notifier.SendDM(ctx, slackUserID, msg); err != nil {
@@ -88,8 +93,10 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 				zap.String("slack_user_id", slackUserID),
 				zap.Error(err),
 			)
-			// best-effort: log and continue
+			s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeSlackSendFailed)
+			continue
 		}
+		s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeOK)
 	}
 	return nil
 }

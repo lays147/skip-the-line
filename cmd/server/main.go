@@ -64,7 +64,7 @@ func main() {
 	// Construct clients and services.
 	ghClient := githubclient.NewClient(cfg.GitHubToken, cfg.GitHubAPIURL)
 	slClient := slackclient.NewClient(cfg.SlackBotToken, cfg.SlackAPIURL)
-	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger)
+	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger, m)
 
 	// Construct handlers.
 	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, m, subs, logger)

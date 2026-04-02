@@ -157,7 +157,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 				},
 			}
 
-			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs, zap.NewNop())
+			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs, zap.NewNop(), noopMetrics())
 			err := svc.Notify(context.Background(), "pull_request", tc.event)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

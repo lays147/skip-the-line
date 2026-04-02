@@ -18,8 +18,9 @@ const meterName = "github.com/skip-the-line"
 
 // Metrics holds all application metric instruments.
 type Metrics struct {
-	eventsCounter  metric.Int64Counter
-	mergeHistogram metric.Float64Histogram
+	eventsCounter       metric.Int64Counter
+	mergeHistogram      metric.Float64Histogram
+	deliveriesCounter   metric.Int64Counter
 }
 
 // New registers all application metric instruments against mp.
@@ -45,7 +46,15 @@ func New(mp metric.MeterProvider) (*Metrics, error) {
 		return nil, fmt.Errorf("create pr_merge_duration_seconds histogram: %w", err)
 	}
 
-	return &Metrics{eventsCounter: counter, mergeHistogram: histogram}, nil
+	deliveries, err := meter.Int64Counter(
+		"notification_deliveries_total",
+		metric.WithDescription("Total Slack DM delivery attempts, labelled by event_type and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create notification_deliveries_total counter: %w", err)
+	}
+
+	return &Metrics{eventsCounter: counter, mergeHistogram: histogram, deliveriesCounter: deliveries}, nil
 }
 
 // RecordWebhookEvent increments the webhook_events_total counter for the given event type.
@@ -60,6 +69,22 @@ func (m *Metrics) RecordWebhookEvent(ctx context.Context, eventType string) {
 func (m *Metrics) RecordPRMergeDuration(ctx context.Context, openedAt, mergedAt time.Time, authorSubscribed bool) {
 	m.mergeHistogram.Record(ctx, mergedAt.Sub(openedAt).Seconds(), metric.WithAttributes(
 		attribute.Bool("subscribed", authorSubscribed),
+	))
+}
+
+// Delivery outcome values for RecordNotificationDelivery.
+const (
+	OutcomeOK               = "ok"
+	OutcomeSlackLookupFailed = "slack_lookup_failed"
+	OutcomeSlackSendFailed   = "slack_send_failed"
+)
+
+// RecordNotificationDelivery increments the notification_deliveries_total counter.
+// outcome must be one of the Outcome* constants.
+func (m *Metrics) RecordNotificationDelivery(ctx context.Context, eventType, outcome string) {
+	m.deliveriesCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("event_type", eventType),
+		attribute.String("outcome", outcome),
 	))
 }
 

@@ -1,6 +1,15 @@
 package notification_test
 
-import "github.com/skip-the-line/internal/subscription"
+import (
+	"github.com/skip-the-line/internal/metrics"
+	"github.com/skip-the-line/internal/subscription"
+	"go.opentelemetry.io/otel/metric/noop"
+)
+
+func noopMetrics() *metrics.Metrics {
+	m, _ := metrics.New(noop.NewMeterProvider())
+	return m
+}
 
 func strPtr(s string) *string { return &s }
 

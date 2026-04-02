@@ -47,7 +47,7 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 
 	pr := e.GetPullRequest()
 	msg := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
-	return s.sendToRecipients(ctx, recipients, authorLogin, msg)
+	return s.sendToRecipients(ctx, recipients, authorLogin, msg, "pull_request")
 }
 
 func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) string {

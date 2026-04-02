@@ -30,7 +30,7 @@ func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *gith
 	msg := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
 
 	recipients := map[string]struct{}{authorLogin: {}}
-	return s.sendToRecipients(ctx, recipients, "", msg)
+	return s.sendToRecipients(ctx, recipients, "", msg, "pull_request_review")
 }
 
 func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) string {
