@@ -22,10 +22,6 @@ webhook → signature validation → event routing → subscriber resolution →
 ## Quickstart
 
 ```bash
-# Copy and fill in your environment variables
-cp .env.example .env
-
-# Start the full stack locally
 make up
 ```
 
@@ -33,15 +29,18 @@ The app will be reachable at `http://localhost:8080`.
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|---|---|---|
-| `GITHUB_WEBHOOK_SECRET` | Secret used to validate webhook HMAC signatures | Yes |
-| `SLACK_BOT_TOKEN` | Slack bot OAuth token (`xoxb-...`) | Yes |
-| `GITHUB_TOKEN` | GitHub personal access token for team API calls | Yes |
-| `PORT` | HTTP listen port (default: `8080`) | No |
-| `LOG_ENV` | Logging mode: `dev` or `prod` (default: `prod`) | No |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector endpoint | No |
-| `OTEL_SERVICE_NAME` | Service name reported to tracing backend | No |
+| Variable | Description | Required | Default |
+|---|---|---|---|
+| `GITHUB_WEBHOOK_SECRET` | Secret used to validate webhook HMAC signatures | Yes | — |
+| `SLACK_BOT_TOKEN` | Slack bot OAuth token (`xoxb-...`) | Yes | — |
+| `GITHUB_TOKEN` | GitHub personal access token for team API calls | Yes | — |
+| `PORT` | HTTP listen port | No | `8080` |
+| `LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, `error` | No | `info` |
+| `ENVIRONMENT` | Deployment environment tag attached to every log and metric | No | `dev` |
+| `OTEL_SERVICE_NAME` | Service name reported to the OTel backend | No | `github-webhook-notifier` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC collector endpoint (e.g. `otel-collector:4317`); metrics are dropped when unset | No | — |
+| `SLACK_API_URL` | Override Slack API base URL (local dev / testing) | No | — |
+| `GITHUB_API_URL` | Override GitHub API base URL (local dev / testing) | No | — |
 
 ## Subscription Config
 
