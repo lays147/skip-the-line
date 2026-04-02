@@ -19,8 +19,9 @@ import (
 // newLogger builds a production zap.Logger that tees JSON output to stdout and
 // an OTel log bridge. Log level and service metadata are sourced from cfg.
 // The OTel core enriches log records with the active trace/span context when
-// available. Callers are responsible for calling logger.Sync() on shutdown.
-func newLogger(cfg config.Config) (*zap.Logger, error) {
+// available. Callers are responsible for calling logger.Sync() and
+// lp.Shutdown() on shutdown.
+func newLogger(cfg config.Config) (*zap.Logger, *sdklog.LoggerProvider, error) {
 	level, err := zapcore.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		level = zapcore.InfoLevel
@@ -38,12 +39,12 @@ func newLogger(cfg config.Config) (*zap.Logger, error) {
 
 	stdoutExp, err := stdoutlog.New()
 	if err != nil {
-		return nil, fmt.Errorf("init stdout log exporter: %w", err)
+		return nil, nil, fmt.Errorf("init stdout log exporter: %w", err)
 	}
 
 	lp, err := newLoggerProvider(cfg, stdoutExp)
 	if err != nil {
-		return nil, fmt.Errorf("init otel logger provider: %w", err)
+		return nil, nil, fmt.Errorf("init otel logger provider: %w", err)
 	}
 
 	otelCore := otelzap.NewCore(cfg.OTELServiceName, otelzap.WithLoggerProvider(lp))
@@ -58,7 +59,7 @@ func newLogger(cfg config.Config) (*zap.Logger, error) {
 		),
 	)
 
-	return logger, nil
+	return logger, lp, nil
 }
 
 // newLoggerProvider initialises an OTel LoggerProvider with the given exporter,

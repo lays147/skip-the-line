@@ -25,7 +25,7 @@ func TestNewLogger_ValidLevels(t *testing.T) {
 			cfg := baseConfig()
 			cfg.LogLevel = lvl
 
-			logger, err := newLogger(cfg)
+			logger, _, err := newLogger(cfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -42,7 +42,7 @@ func TestNewLogger_InvalidLevelFallsBackToInfo(t *testing.T) {
 	cfg := baseConfig()
 	cfg.LogLevel = "notavalidlevel"
 
-	logger, err := newLogger(cfg)
+	logger, _, err := newLogger(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestNewLogger_DefaultFields(t *testing.T) {
 	cfg := baseConfig()
 	cfg.LogLevel = "debug"
 
-	logger, err := newLogger(cfg)
+	logger, _, err := newLogger(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

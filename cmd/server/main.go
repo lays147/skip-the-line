@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// Initialise logger (stdout + OTel bridge).
-	logger, err := newLogger(cfg)
+	logger, lp, err := newLogger(cfg)
 	if err != nil {
 		panic("failed to initialise logger: " + err.Error())
 	}
@@ -107,5 +107,13 @@ func main() {
 
 	if err := tp.Shutdown(ctx); err != nil {
 		logger.Warn("trace provider shutdown error", zap.Error(err))
+	}
+
+	if err := mp.Shutdown(ctx); err != nil {
+		logger.Warn("meter provider shutdown error", zap.Error(err))
+	}
+
+	if err := lp.Shutdown(ctx); err != nil {
+		logger.Warn("log provider shutdown error", zap.Error(err))
 	}
 }
