@@ -4,7 +4,7 @@ Skipt The Line has the purpose to reduce the cognitive toil of pinging coworkers
 
 With this automation we use GitHub Webhooks to send notifications via slack for reviewers to review and for an author to check out request changes or approves.
 
-Project 100% built with [AWS Kiro](kiro.dev)
+Project 98% built with [AWS Kiro](kiro.dev), 1% by Claude and 1% by me.
 
 ## How it works
 
