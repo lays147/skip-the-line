@@ -71,8 +71,12 @@ func main() {
 	healthHandler := health.NewHandler()
 
 	// Register routes.
+	// Webhook processing is wrapped with a hard deadline so that slow Slack or
+	// GitHub API calls cannot stall a goroutine indefinitely. The handler timeout
+	// is kept below WriteTimeout so the server can still write the 503 response.
+	handlerTimeout := time.Duration(cfg.HandlerTimeoutSeconds) * time.Second
 	r := chi.NewRouter()
-	r.Post("/webhook", webhookHandler.ServeHTTP)
+	r.Post("/webhook", http.TimeoutHandler(webhookHandler, handlerTimeout, `{"error":"request timeout"}`).ServeHTTP)
 	r.Get("/healthz", healthHandler.Healthz)
 	r.Get("/readyz", healthHandler.Readyz)
 
@@ -80,8 +84,10 @@ func main() {
 	healthHandler.SetReady(true)
 
 	server := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
+		Addr:         ":" + cfg.Port,
+		Handler:      r,
+		ReadTimeout:  time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
 	}
 
 	// Start server in background.
