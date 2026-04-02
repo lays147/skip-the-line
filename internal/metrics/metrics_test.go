@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.opentelemetry.io/otel/attribute"
@@ -119,17 +120,17 @@ func TestMetricsPipelinePreservation(t *testing.T) {
 				t.Fatal("NewMeterProvider returned nil provider")
 			}
 
-			counter, err := metrics.WebhookEventsCounter(mp)
+			m, err := metrics.New(mp)
 			if err != nil {
-				t.Fatalf("WebhookEventsCounter returned error: %v", err)
+				t.Fatalf("metrics.New returned error: %v", err)
 			}
-			if counter == nil {
-				t.Fatal("WebhookEventsCounter returned nil counter")
+			if m == nil {
+				t.Fatal("metrics.New returned nil")
 			}
 
-			// Verify the counter can be used without panic.
-			counter.Add(context.Background(), 1)
-			counter.Add(context.Background(), 5)
+			// Verify instruments can be used without panic.
+			m.RecordWebhookEvent(context.Background(), "pull_request")
+			m.RecordPRMergeDuration(context.Background(), time.Now().Add(-time.Hour), time.Now(), true)
 		})
 	}
 }

@@ -49,16 +49,10 @@ func main() {
 		logger.Fatal("failed to initialise meter provider", zap.Error(err))
 	}
 
-	// Create webhook_events_total counter.
-	counter, err := metrics.WebhookEventsCounter(mp)
+	// Register all metric instruments.
+	m, err := metrics.New(mp)
 	if err != nil {
-		logger.Fatal("failed to create webhook_events_total counter", zap.Error(err))
-	}
-
-	// Create pr_merge_duration_seconds histogram.
-	mergeHistogram, err := metrics.PRMergeHistogram(mp)
-	if err != nil {
-		logger.Fatal("failed to create pr_merge_duration_seconds histogram", zap.Error(err))
+		logger.Fatal("failed to register metrics", zap.Error(err))
 	}
 
 	// Construct clients and services.
@@ -67,7 +61,7 @@ func main() {
 	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger)
 
 	// Construct handlers.
-	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, counter, mergeHistogram, subs, logger)
+	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, m, subs, logger)
 	healthHandler := health.NewHandler()
 
 	// Register routes.

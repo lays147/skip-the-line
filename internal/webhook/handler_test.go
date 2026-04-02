@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/subscription"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -59,10 +60,8 @@ func newTestHandler(svc *mocks.NotificationServicerMock) *Handler {
 }
 
 func newTestHandlerWithSubs(svc *mocks.NotificationServicerMock, subs subscription.Registry) *Handler {
-	mp := noop.NewMeterProvider()
-	counter, _ := mp.Meter("test").Int64Counter("webhook_events_total")
-	histogram, _ := mp.Meter("test").Float64Histogram("pr_merge_duration_seconds")
-	return NewHandler(svc, testSecret, counter, histogram, subs, noopLogger())
+	m, _ := metrics.New(noop.NewMeterProvider())
+	return NewHandler(svc, testSecret, m, subs, noopLogger())
 }
 
 // mergedPRPayload returns a pull_request closed+merged event JSON body.

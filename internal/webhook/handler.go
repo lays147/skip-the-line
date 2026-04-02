@@ -8,30 +8,26 @@ import (
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/notification"
 	"github.com/skip-the-line/internal/subscription"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 )
 
 // Handler handles incoming GitHub webhook requests.
 type Handler struct {
-	svc            notification.NotificationServicer
-	webhookSecret  string
-	counter        metric.Int64Counter
-	mergeHistogram metric.Float64Histogram
-	subs           subscription.Registry
-	logger         *zap.Logger
+	svc           notification.NotificationServicer
+	webhookSecret string
+	metrics       *metrics.Metrics
+	subs          subscription.Registry
+	logger        *zap.Logger
 }
 
 // NewHandler constructs a new webhook Handler.
-func NewHandler(svc notification.NotificationServicer, secret string, counter metric.Int64Counter, mergeHistogram metric.Float64Histogram, subs subscription.Registry, logger *zap.Logger) *Handler {
+func NewHandler(svc notification.NotificationServicer, secret string, m *metrics.Metrics, subs subscription.Registry, logger *zap.Logger) *Handler {
 	return &Handler{
-		svc:            svc,
-		webhookSecret:  secret,
-		counter:        counter,
-		mergeHistogram: mergeHistogram,
-		subs:           subs,
-		logger:         logger,
+		svc:           svc,
+		webhookSecret: secret,
+		metrics:       m,
+		subs:          subs,
+		logger:        logger,
 	}
 }
 
@@ -46,11 +42,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	eventType := r.Header.Get("X-GitHub-Event")
-
-	// Increment OTel counter after successful validation.
-	h.counter.Add(r.Context(), 1, metric.WithAttributes(
-		attribute.String("event_type", eventType),
-	))
+	h.metrics.RecordWebhookEvent(r.Context(), eventType)
 
 	// Parse the webhook payload into a typed SDK struct.
 	event, err := github.ParseWebHook(eventType, body)
@@ -69,9 +61,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		pr.GetAction() == "closed" && pr.GetPullRequest().GetMerged() {
 		authorLogin := pr.GetPullRequest().GetUser().GetLogin()
 		_, subscribed := h.subs.EmailFor(authorLogin)
-		metrics.RecordPRMergeDuration(
+		h.metrics.RecordPRMergeDuration(
 			r.Context(),
-			h.mergeHistogram,
 			pr.GetPullRequest().GetCreatedAt().Time,
 			pr.GetPullRequest().GetMergedAt().Time,
 			subscribed,
