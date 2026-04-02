@@ -9,6 +9,7 @@ import (
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
 	"github.com/skip-the-line/internal/subscription"
+	"go.uber.org/zap"
 )
 
 func strPtr(s string) *string { return &s }
@@ -144,7 +145,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 				},
 			}
 
-			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs)
+			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs, zap.NewNop())
 			err := svc.Notify(context.Background(), "pull_request", tc.event)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -244,7 +245,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 				},
 			}
 
-			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs)
+			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs, zap.NewNop())
 			err := svc.Notify(context.Background(), "pull_request_review", tc.event)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -350,7 +351,7 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 				},
 			}
 
-			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs)
+			svc := notification.NewNotificationService(mockResolver, mockNotifier, testSubs, zap.NewNop())
 			err := svc.Notify(context.Background(), "pull_request_review_comment", tc.event)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

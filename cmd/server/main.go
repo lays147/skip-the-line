@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/skip-the-line/internal/config"
 	"github.com/skip-the-line/internal/health"
@@ -27,20 +29,34 @@ func main() {
 	// Load configuration.
 	cfg, err := config.Load()
 	if err != nil {
-		// zap not yet initialised; use stdlib log for fatal.
 		panic("failed to load config: " + err.Error())
 	}
 
-	// Initialise logger.
-	var logger *zap.Logger
+	// Initialise base logger (stdout).
+	var baseCore zapcore.Core
 	if cfg.LogEnv == "dev" {
-		logger, err = zap.NewDevelopment()
+		devLogger, err := zap.NewDevelopment()
+		if err != nil {
+			panic("failed to initialise logger: " + err.Error())
+		}
+		baseCore = devLogger.Core()
 	} else {
-		logger, err = zap.NewProduction()
+		prodLogger, err := zap.NewProduction()
+		if err != nil {
+			panic("failed to initialise logger: " + err.Error())
+		}
+		baseCore = prodLogger.Core()
 	}
+
+	// Initialise OTel log provider (bridges zap logs into OTel traces as log records).
+	lp, err := metrics.NewLoggerProvider(cfg)
 	if err != nil {
-		panic("failed to initialise logger: " + err.Error())
+		panic("failed to initialise otel logger provider: " + err.Error())
 	}
+
+	// Tee: stdout core + otelzap bridge core.
+	otelCore := otelzap.NewCore("github.com/skip-the-line", otelzap.WithLoggerProvider(lp))
+	logger := zap.New(zapcore.NewTee(baseCore, otelCore), zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 	defer logger.Sync() //nolint:errcheck
 
 	// Load subscriptions into in-memory registry.
@@ -64,7 +80,7 @@ func main() {
 	// Construct clients and services.
 	ghClient := githubclient.NewClient(cfg.GitHubToken, cfg.GitHubAPIURL)
 	slClient := slackclient.NewClient(cfg.SlackBotToken, cfg.SlackAPIURL)
-	notifSvc := notification.NewNotificationService(ghClient, slClient, subs)
+	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger)
 
 	// Construct handlers.
 	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, counter, logger)

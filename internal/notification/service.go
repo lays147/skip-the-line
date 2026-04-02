@@ -33,12 +33,12 @@ type NotificationService struct {
 }
 
 // NewNotificationService constructs a NotificationService.
-func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry) *NotificationService {
+func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry, logger *zap.Logger) *NotificationService {
 	return &NotificationService{
 		resolver: resolver,
 		notifier: notifier,
 		subs:     subs,
-		logger:   zap.NewNop(),
+		logger:   logger,
 	}
 }
 
