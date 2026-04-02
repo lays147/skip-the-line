@@ -2,6 +2,7 @@ package notification_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
@@ -12,10 +13,11 @@ import (
 
 func TestNotify_PullRequestReviewComment(t *testing.T) {
 	tests := []struct {
-		name        string
-		event       *github.PullRequestReviewCommentEvent
-		wantDMCount int
-		wantEmails  []string
+		name             string
+		event            *github.PullRequestReviewCommentEvent
+		wantDMCount      int
+		wantEmails       []string
+		wantCommenterRef string // expected value inside <@...> in the DM message
 	}{
 		{
 			name: "author is notified on review comment",
@@ -30,8 +32,9 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 					Body: strPtr("Looks good!"),
 				},
 			},
-			wantDMCount: 1,
-			wantEmails:  []string{"author@example.com"},
+			wantDMCount:      1,
+			wantEmails:       []string{"author@example.com"},
+			wantCommenterRef: "U-reviewer1@example.com", // reviewer1 is subscribed → Slack ID used
 		},
 		{
 			name: "mentioned subscribers are notified",
@@ -46,8 +49,9 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 					Body: strPtr("Hey @reviewer2 can you take a look?"),
 				},
 			},
-			wantDMCount: 2,
-			wantEmails:  []string{"author@example.com", "reviewer2@example.com"},
+			wantDMCount:      2,
+			wantEmails:       []string{"author@example.com", "reviewer2@example.com"},
+			wantCommenterRef: "U-reviewer1@example.com",
 		},
 		{
 			name: "duplicates deduplicated (author also mentioned)",
@@ -63,8 +67,9 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 				},
 			},
 			// author appears both as PR author and @mention — only one DM
-			wantDMCount: 1,
-			wantEmails:  []string{"author@example.com"},
+			wantDMCount:      1,
+			wantEmails:       []string{"author@example.com"},
+			wantCommenterRef: "U-reviewer1@example.com",
 		},
 		{
 			name: "commenter excluded from notifications",
@@ -82,14 +87,33 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 			// reviewer1 is both author and commenter — excluded
 			wantDMCount: 0,
 		},
+		{
+			name: "unsubscribed commenter falls back to GitHub login in message",
+			event: &github.PullRequestReviewCommentEvent{
+				PullRequest: &github.PullRequest{
+					User:    &github.User{Login: strPtr("author")},
+					HTMLURL: strPtr("https://github.com/org/repo/pull/5"),
+					Title:   strPtr("External Comment PR"),
+				},
+				Comment: &github.PullRequestComment{
+					User: &github.User{Login: strPtr("external-user")},
+					Body: strPtr("Interesting approach"),
+				},
+			},
+			wantDMCount:      1,
+			wantEmails:       []string{"author@example.com"},
+			wantCommenterRef: "external-user", // not in testSubs → GitHub login used
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var capturedMessages []string
 			dmUserIDs := []string{}
 			mockNotifier := &mocks.SlackNotifierMock{
 				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
 					dmUserIDs = append(dmUserIDs, slackUserID)
+					capturedMessages = append(capturedMessages, message)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -121,6 +145,15 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 				}
 				if !found {
 					t.Errorf("expected DM to user ID %s (email %s) but not found in %v", wantID, wantEmail, dmUserIDs)
+				}
+			}
+			if tc.wantCommenterRef != "" {
+				// json.Marshal HTML-escapes < and > so we check for the ref
+				// value directly rather than the full <@ref> mention syntax.
+				for _, msg := range capturedMessages {
+					if !strings.Contains(msg, tc.wantCommenterRef) {
+						t.Errorf("expected message to contain commenter ref %q, got: %s", tc.wantCommenterRef, msg)
+					}
 				}
 			}
 		})

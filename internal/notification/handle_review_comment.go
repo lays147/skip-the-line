@@ -27,8 +27,18 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 		}
 	}
 
+	// Resolve the commenter's Slack ID so the message contains a proper
+	// clickable mention (<@U12345>) instead of a raw GitHub login.
+	// Falls back to the GitHub login if the commenter is not subscribed.
+	commenterRef := commenterLogin
+	if email, ok := s.subs.EmailFor(commenterLogin); ok {
+		if slackID, err := s.notifier.LookupUserByEmail(ctx, email); err == nil {
+			commenterRef = slackID
+		}
+	}
+
 	pr := e.GetPullRequest()
-	msg := buildReviewCommentBlocks(commenterLogin, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	msg := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
 
 	// Exclude the commenter from notifications.
 	return s.sendToRecipients(ctx, recipients, commenterLogin, msg)

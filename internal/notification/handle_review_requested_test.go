@@ -2,6 +2,7 @@ package notification_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
@@ -17,6 +18,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 		resolverMembers map[string][]string // team slug -> members
 		wantDMEmails    []string
 		wantDMCount     int
+		wantActorRef    string // expected value inside <@...> in the DM message
 	}{
 		{
 			name: "single individual reviewer notified",
@@ -36,6 +38,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			},
 			wantDMEmails: []string{"reviewer1@example.com"},
 			wantDMCount:  1,
+			wantActorRef: "U-author@example.com", // author is subscribed → Slack ID used
 		},
 		{
 			name: "team reviewer expanded to members",
@@ -58,6 +61,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			},
 			wantDMEmails: []string{"tm1@example.com", "tm2@example.com"},
 			wantDMCount:  2,
+			wantActorRef: "U-author@example.com",
 		},
 		{
 			name: "author excluded from notifications",
@@ -78,6 +82,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			},
 			wantDMEmails: []string{"reviewer1@example.com"},
 			wantDMCount:  1,
+			wantActorRef: "U-author@example.com",
 		},
 		{
 			name: "duplicate recipients deduplicated",
@@ -102,16 +107,39 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 				"team-a": {"reviewer1", "reviewer2"},
 			},
 			// reviewer1 appears both as individual and team member — only one DM
-			wantDMCount: 2,
+			wantDMCount:  2,
+			wantActorRef: "U-author@example.com",
+		},
+		{
+			name: "unsubscribed author falls back to GitHub login in message",
+			event: &github.PullRequestEvent{
+				Action: strPtr("review_requested"),
+				PullRequest: &github.PullRequest{
+					User:    &github.User{Login: strPtr("external-author")},
+					HTMLURL: strPtr("https://github.com/org/repo/pull/5"),
+					Title:   strPtr("External PR"),
+					RequestedReviewers: []*github.User{
+						{Login: strPtr("reviewer1")},
+					},
+				},
+				Repo: &github.Repository{
+					Owner: &github.User{Login: strPtr("org")},
+				},
+			},
+			wantDMEmails: []string{"reviewer1@example.com"},
+			wantDMCount:  1,
+			wantActorRef: "external-author", // not in testSubs → GitHub login used
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var capturedMessages []string
 			dmUserIDs := []string{}
 			mockNotifier := &mocks.SlackNotifierMock{
 				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
 					dmUserIDs = append(dmUserIDs, slackUserID)
+					capturedMessages = append(capturedMessages, message)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -148,6 +176,13 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 				}
 				if !found {
 					t.Errorf("expected DM to user ID %s (email %s) but not found in %v", wantID, wantEmail, dmUserIDs)
+				}
+			}
+			if tc.wantActorRef != "" {
+				for _, msg := range capturedMessages {
+					if !strings.Contains(msg, tc.wantActorRef) {
+						t.Errorf("expected message to contain actor ref %q, got: %s", tc.wantActorRef, msg)
+					}
 				}
 			}
 		})

@@ -16,9 +16,18 @@ func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *gith
 		return nil
 	}
 
+	// Resolve the reviewer's Slack ID so the PR author receives a clickable mention.
+	// Falls back to the GitHub login if the reviewer is not subscribed.
+	reviewerRef := reviewerLogin
+	if email, ok := s.subs.EmailFor(reviewerLogin); ok {
+		if slackID, err := s.notifier.LookupUserByEmail(ctx, email); err == nil {
+			reviewerRef = slackID
+		}
+	}
+
 	pr := e.GetPullRequest()
 	approved := e.GetReview().GetState() == "approved"
-	msg := buildReviewSubmittedBlocks(reviewerLogin, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
+	msg := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
 
 	recipients := map[string]struct{}{authorLogin: {}}
 	return s.sendToRecipients(ctx, recipients, "", msg)

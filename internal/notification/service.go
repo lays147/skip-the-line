@@ -71,7 +71,6 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		}
 		email, ok := s.subs.EmailFor(username)
 		if !ok {
-			// not a subscriber — skip silently
 			continue
 		}
 		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)

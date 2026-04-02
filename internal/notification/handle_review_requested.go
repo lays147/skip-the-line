@@ -36,8 +36,17 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 		}
 	}
 
+	// Resolve the PR author's Slack ID so reviewers receive a clickable mention.
+	// Falls back to the GitHub login if the author is not subscribed.
+	authorRef := authorLogin
+	if email, ok := s.subs.EmailFor(authorLogin); ok {
+		if slackID, err := s.notifier.LookupUserByEmail(ctx, email); err == nil {
+			authorRef = slackID
+		}
+	}
+
 	pr := e.GetPullRequest()
-	msg := buildReviewRequestedBlocks(authorLogin, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	msg := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
 	return s.sendToRecipients(ctx, recipients, authorLogin, msg)
 }
 
