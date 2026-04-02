@@ -88,8 +88,11 @@ func TestLoad_OptionalDefaults(t *testing.T) {
 	if cfg.Port != "8080" {
 		t.Errorf("expected Port=8080, got %q", cfg.Port)
 	}
-	if cfg.LogEnv != "prod" {
-		t.Errorf("expected LogEnv=prod, got %q", cfg.LogEnv)
+	if cfg.LogLevel != "info" {
+		t.Errorf("expected LogLevel=info, got %q", cfg.LogLevel)
+	}
+	if cfg.Environment != "dev" {
+		t.Errorf("expected Environment=dev, got %q", cfg.Environment)
 	}
 	if cfg.OTELServiceName != "github-webhook-notifier" {
 		t.Errorf("expected OTELServiceName=github-webhook-notifier, got %q", cfg.OTELServiceName)
@@ -99,7 +102,8 @@ func TestLoad_OptionalDefaults(t *testing.T) {
 func TestLoad_OptionalOverrides(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("PORT", "9090")
-	t.Setenv("LOG_ENV", "dev")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("ENVIRONMENT", "staging")
 	t.Setenv("OTEL_SERVICE_NAME", "my-service")
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
 
@@ -111,8 +115,11 @@ func TestLoad_OptionalOverrides(t *testing.T) {
 	if cfg.Port != "9090" {
 		t.Errorf("expected Port=9090, got %q", cfg.Port)
 	}
-	if cfg.LogEnv != "dev" {
-		t.Errorf("expected LogEnv=dev, got %q", cfg.LogEnv)
+	if cfg.LogLevel != "debug" {
+		t.Errorf("expected LogLevel=debug, got %q", cfg.LogLevel)
+	}
+	if cfg.Environment != "staging" {
+		t.Errorf("expected Environment=staging, got %q", cfg.Environment)
 	}
 	if cfg.OTELServiceName != "my-service" {
 		t.Errorf("expected OTELServiceName=my-service, got %q", cfg.OTELServiceName)

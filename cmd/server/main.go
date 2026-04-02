@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/skip-the-line/internal/config"
 	"github.com/skip-the-line/internal/health"
@@ -32,31 +30,11 @@ func main() {
 		panic("failed to load config: " + err.Error())
 	}
 
-	// Initialise base logger (stdout).
-	var baseCore zapcore.Core
-	if cfg.LogEnv == "dev" {
-		devLogger, err := zap.NewDevelopment()
-		if err != nil {
-			panic("failed to initialise logger: " + err.Error())
-		}
-		baseCore = devLogger.Core()
-	} else {
-		prodLogger, err := zap.NewProduction()
-		if err != nil {
-			panic("failed to initialise logger: " + err.Error())
-		}
-		baseCore = prodLogger.Core()
-	}
-
-	// Initialise OTel log provider (bridges zap logs into OTel traces as log records).
-	lp, err := metrics.NewLoggerProvider(cfg)
+	// Initialise logger (stdout + OTel bridge).
+	logger, err := newLogger(cfg)
 	if err != nil {
-		panic("failed to initialise otel logger provider: " + err.Error())
+		panic("failed to initialise logger: " + err.Error())
 	}
-
-	// Tee: stdout core + otelzap bridge core.
-	otelCore := otelzap.NewCore("github.com/skip-the-line", otelzap.WithLoggerProvider(lp))
-	logger := zap.New(zapcore.NewTee(baseCore, otelCore), zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 	defer logger.Sync() //nolint:errcheck
 
 	// Load subscriptions into in-memory registry.

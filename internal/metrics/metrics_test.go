@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/contrib/bridges/otelzap"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -23,11 +25,17 @@ func newLoggerProviderWithWriter(t *testing.T, cfg config.Config, buf *bytes.Buf
 	if err != nil {
 		t.Fatalf("stdoutlog.New: %v", err)
 	}
-	lp, err := metrics.NewLoggerProviderWithExporter(cfg, exp)
+	res, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(attribute.String("service.name", cfg.OTELServiceName)),
+	)
 	if err != nil {
-		t.Fatalf("NewLoggerProviderWithExporter: %v", err)
+		t.Fatalf("resource.New: %v", err)
 	}
-	return lp
+	return sdklog.NewLoggerProvider(
+		sdklog.WithResource(res),
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exp)),
+	)
 }
 
 // TestNewLoggerProviderWritesToStdout encodes the expected behavior:
@@ -81,47 +89,6 @@ func TestNewLoggerProviderWritesToStdout(t *testing.T) {
 	}
 }
 
-// TestServiceNameResourcePreservation asserts that NewLoggerProvider correctly sets
-// the service.name resource attribute for any OTELServiceName value.
-//
-// These tests PASS on unfixed code — they capture baseline structural behaviors.
-//
-// Validates: Requirements 3.3
-func TestServiceNameResourcePreservation(t *testing.T) {
-	cases := []struct {
-		name        string
-		serviceName string
-	}{
-		{name: "standard service name", serviceName: "github-webhook-notifier"},
-		{name: "custom service name", serviceName: "my-custom-service"},
-		{name: "empty service name", serviceName: ""},
-		{name: "service name with spaces", serviceName: "my service name"},
-		{name: "service name with special chars", serviceName: "svc-v2.0_prod"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Config{
-				OTELServiceName:          tc.serviceName,
-				OTELExporterOTLPEndpoint: "",
-			}
-
-			lp, err := metrics.NewLoggerProvider(cfg)
-			if err != nil {
-				t.Fatalf("NewLoggerProvider returned error: %v", err)
-			}
-			if lp == nil {
-				t.Fatal("NewLoggerProvider returned nil provider")
-			}
-
-			// Verify the provider is non-nil and was created without error.
-			// The service name is embedded in the resource passed to sdklog.WithResource.
-			// We verify structural correctness: provider created successfully for any service name.
-			_ = lp
-		})
-	}
-}
-
 // TestMetricsPipelinePreservation asserts that NewMeterProvider and WebhookEventsCounter
 // are unaffected — they return no error and the counter increments without panic.
 //
@@ -165,35 +132,4 @@ func TestMetricsPipelinePreservation(t *testing.T) {
 			counter.Add(context.Background(), 5)
 		})
 	}
-}
-
-// TestCallerInfoPreservation asserts that constructing a zap logger with otelzap core,
-// zap.AddCaller(), and zap.AddStacktrace(zapcore.ErrorLevel) succeeds without error
-// and Sync() works correctly.
-//
-// These tests PASS on unfixed code — logger construction is unaffected by the bug.
-//
-// Validates: Requirements 3.5
-func TestCallerInfoPreservation(t *testing.T) {
-	cfg := config.Config{
-		OTELServiceName:          "test-service",
-		OTELExporterOTLPEndpoint: "",
-	}
-
-	lp, err := metrics.NewLoggerProvider(cfg)
-	if err != nil {
-		t.Fatalf("NewLoggerProvider returned error: %v", err)
-	}
-
-	otelCore := otelzap.NewCore("github.com/skip-the-line", otelzap.WithLoggerProvider(lp))
-
-	// Verify the logger is constructed successfully with caller and stacktrace options.
-	logger := zap.New(otelCore, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
-	if logger == nil {
-		t.Fatal("zap.New returned nil logger")
-	}
-
-	// Verify Sync() does not return an unexpected error.
-	// (Some cores return errors on Sync; we just ensure no panic.)
-	_ = logger.Sync()
 }

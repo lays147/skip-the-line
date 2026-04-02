@@ -6,10 +6,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/skip-the-line/internal/config"
@@ -43,33 +41,6 @@ func NewMeterProvider(cfg config.Config) (*sdkmetric.MeterProvider, error) {
 	}
 
 	return sdkmetric.NewMeterProvider(opts...), nil
-}
-
-// NewLoggerProvider initialises an OTel LoggerProvider with a stdout log exporter
-// so all log records are written to stdout via the otelzap bridge pipeline.
-func NewLoggerProvider(cfg config.Config) (*sdklog.LoggerProvider, error) {
-	stdoutExp, err := stdoutlog.New()
-	if err != nil {
-		return nil, fmt.Errorf("create stdout log exporter: %w", err)
-	}
-	return NewLoggerProviderWithExporter(cfg, stdoutExp)
-}
-
-// NewLoggerProviderWithExporter initialises an OTel LoggerProvider with the given exporter.
-// This allows tests to inject a custom writer without touching os.Stdout.
-func NewLoggerProviderWithExporter(cfg config.Config, exp sdklog.Exporter) (*sdklog.LoggerProvider, error) {
-	res, err := resource.New(
-		context.Background(),
-		resource.WithAttributes(attribute.String("service.name", cfg.OTELServiceName)),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create otel resource: %w", err)
-	}
-
-	return sdklog.NewLoggerProvider(
-		sdklog.WithResource(res),
-		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exp)),
-	), nil
 }
 
 // WebhookEventsCounter returns an Int64Counter instrument named "webhook_events_total"
