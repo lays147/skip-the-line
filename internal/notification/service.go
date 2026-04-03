@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/metrics"
@@ -77,8 +78,11 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 			// not a subscriber — skip silently
 			continue
 		}
+		lookupStart := time.Now()
 		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)
+		lookupDuration := time.Since(lookupStart)
 		if err != nil {
+			s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeSlackLookupFailed)
 			s.logger.Warn("failed to look up Slack user",
 				zap.String("github_username", username),
 				zap.String("email", email),
@@ -87,7 +91,12 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 			s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeSlackLookupFailed)
 			continue
 		}
-		if err := s.notifier.SendDM(ctx, slackUserID, msg); err != nil {
+		s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeOK)
+
+		sendStart := time.Now()
+		err = s.notifier.SendDM(ctx, slackUserID, msg)
+		s.metrics.RecordSlackSendDuration(ctx, time.Since(sendStart), outcomeFor(err))
+		if err != nil {
 			s.logger.Error("failed to send Slack DM",
 				zap.String("github_username", username),
 				zap.String("slack_user_id", slackUserID),
@@ -99,6 +108,13 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeOK)
 	}
 	return nil
+}
+
+func outcomeFor(err error) string {
+	if err != nil {
+		return metrics.OutcomeError
+	}
+	return metrics.OutcomeOK
 }
 
 func marshalBlocks(blocks []any) (string, error) {

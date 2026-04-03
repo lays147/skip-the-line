@@ -18,9 +18,12 @@ const meterName = "github.com/skip-the-line"
 
 // Metrics holds all application metric instruments.
 type Metrics struct {
-	eventsCounter       metric.Int64Counter
-	mergeHistogram      metric.Float64Histogram
-	deliveriesCounter   metric.Int64Counter
+	eventsCounter          metric.Int64Counter
+	mergeHistogram         metric.Float64Histogram
+	deliveriesCounter      metric.Int64Counter
+	slackLookupHistogram   metric.Float64Histogram
+	slackSendHistogram     metric.Float64Histogram
+	teamMembersHistogram   metric.Float64Histogram
 }
 
 // New registers all application metric instruments against mp.
@@ -54,7 +57,41 @@ func New(mp metric.MeterProvider) (*Metrics, error) {
 		return nil, fmt.Errorf("create notification_deliveries_total counter: %w", err)
 	}
 
-	return &Metrics{eventsCounter: counter, mergeHistogram: histogram, deliveriesCounter: deliveries}, nil
+	slackLookup, err := meter.Float64Histogram(
+		"slack_lookup_duration_seconds",
+		metric.WithDescription("Latency of Slack LookupUserByEmail calls, labelled by outcome"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create slack_lookup_duration_seconds histogram: %w", err)
+	}
+
+	slackSend, err := meter.Float64Histogram(
+		"slack_send_duration_seconds",
+		metric.WithDescription("Latency of Slack SendDM calls, labelled by outcome"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create slack_send_duration_seconds histogram: %w", err)
+	}
+
+	teamMembers, err := meter.Float64Histogram(
+		"github_team_members_duration_seconds",
+		metric.WithDescription("Latency of GitHub GetTeamMembers calls, labelled by outcome"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create github_team_members_duration_seconds histogram: %w", err)
+	}
+
+	return &Metrics{
+		eventsCounter:        counter,
+		mergeHistogram:       histogram,
+		deliveriesCounter:    deliveries,
+		slackLookupHistogram: slackLookup,
+		slackSendHistogram:   slackSend,
+		teamMembersHistogram: teamMembers,
+	}, nil
 }
 
 // RecordWebhookEvent increments the webhook_events_total counter for the given event type.
@@ -72,11 +109,12 @@ func (m *Metrics) RecordPRMergeDuration(ctx context.Context, openedAt, mergedAt 
 	))
 }
 
-// Delivery outcome values for RecordNotificationDelivery.
+// Outcome values used as labels on latency and delivery metrics.
 const (
 	OutcomeOK               = "ok"
 	OutcomeSlackLookupFailed = "slack_lookup_failed"
 	OutcomeSlackSendFailed   = "slack_send_failed"
+	OutcomeError             = "error"
 )
 
 // RecordNotificationDelivery increments the notification_deliveries_total counter.
@@ -84,6 +122,27 @@ const (
 func (m *Metrics) RecordNotificationDelivery(ctx context.Context, eventType, outcome string) {
 	m.deliveriesCounter.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("event_type", eventType),
+		attribute.String("outcome", outcome),
+	))
+}
+
+// RecordSlackLookupDuration records the latency of a LookupUserByEmail call.
+func (m *Metrics) RecordSlackLookupDuration(ctx context.Context, d time.Duration, outcome string) {
+	m.slackLookupHistogram.Record(ctx, d.Seconds(), metric.WithAttributes(
+		attribute.String("outcome", outcome),
+	))
+}
+
+// RecordSlackSendDuration records the latency of a SendDM call.
+func (m *Metrics) RecordSlackSendDuration(ctx context.Context, d time.Duration, outcome string) {
+	m.slackSendHistogram.Record(ctx, d.Seconds(), metric.WithAttributes(
+		attribute.String("outcome", outcome),
+	))
+}
+
+// RecordTeamMembersDuration records the latency of a GetTeamMembers call.
+func (m *Metrics) RecordTeamMembersDuration(ctx context.Context, d time.Duration, outcome string) {
+	m.teamMembersHistogram.Record(ctx, d.Seconds(), metric.WithAttributes(
 		attribute.String("outcome", outcome),
 	))
 }

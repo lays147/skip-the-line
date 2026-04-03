@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/go-github/v62/github"
 	"go.uber.org/zap"
@@ -23,7 +24,9 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 	org := e.GetRepo().GetOwner().GetLogin()
 	for _, team := range e.GetPullRequest().RequestedTeams {
 		teamSlug := team.GetSlug()
+		start := time.Now()
 		members, err := s.resolver.GetTeamMembers(ctx, org, teamSlug)
+		s.metrics.RecordTeamMembersDuration(ctx, time.Since(start), outcomeFor(err))
 		if err != nil {
 			s.logger.Error("failed to resolve team members",
 				zap.String("team", teamSlug),
