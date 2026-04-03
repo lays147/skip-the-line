@@ -1,10 +1,16 @@
 # skip-the-line
 
-Skipt The Line has the purpose to reduce the cognitive toil of pinging coworkers to review a PR and for the author to keep checking GitHub for reviews on it's own PR's. 
+Skip The Line has the purpose to reduce the cognitive toil of pinging coworkers to review a PR and for the author to keep checking GitHub for reviews on it's own PR's. 
 
 With this automation we use GitHub Webhooks to send notifications via slack for reviewers to review and for an author to check out request changes or approves.
 
-Project 98% built with [AWS Kiro](kiro.dev), 1% by Claude and 1% by me.
+By using this automation your organization might have the opportunity to reduce the Mean Time to Merge (MTTM) to **about 40%**.
+
+## Prompted by me, built with AI
+
+> Project 98% built with [AWS Kiro](kiro.dev), 1% by Claude and 1% by me.
+
+This project was built as a study case of AWS Kiro. Further updates and refactorings were made using Claude.
 
 ## How it works
 
