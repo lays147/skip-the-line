@@ -9,7 +9,7 @@ import (
 )
 
 // mentionRegex matches @username patterns in comment bodies.
-var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9-]+)`)
+var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
 
 func (s *NotificationService) handleReviewComment(ctx context.Context, e *github.PullRequestReviewCommentEvent) error {
 	authorLogin := e.GetPullRequest().GetUser().GetLogin()
