@@ -34,8 +34,8 @@ func pullRequestPayload() []byte {
 	payload := map[string]any{
 		"action": "review_requested",
 		"pull_request": map[string]any{
-			"number": 1,
-			"title":  "Test PR",
+			"number":   1,
+			"title":    "Test PR",
 			"html_url": "https://github.com/org/repo/pull/1",
 			"user": map[string]any{
 				"login": "author",
@@ -69,10 +69,10 @@ func mergedPRPayload(openedAt, mergedAt time.Time) []byte {
 	payload := map[string]any{
 		"action": "closed",
 		"pull_request": map[string]any{
-			"number":    2,
-			"title":     "Merged PR",
-			"html_url":  "https://github.com/org/repo/pull/2",
-			"merged":    true,
+			"number":     2,
+			"title":      "Merged PR",
+			"html_url":   "https://github.com/org/repo/pull/2",
+			"merged":     true,
 			"created_at": openedAt.Format(time.RFC3339),
 			"merged_at":  mergedAt.Format(time.RFC3339),
 			"user": map[string]any{
@@ -94,9 +94,9 @@ func noopLogger() *zap.Logger {
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
-		name           string
-		eventType      string
-		body           []byte
+		name      string
+		eventType string
+		body      []byte
 		// sigOverride: if non-empty, use this as the X-Hub-Signature-256 header value.
 		// If empty and validSig is false, no signature header is set.
 		sigOverride    string
@@ -127,10 +127,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:      "unsupported event type returns 200 no-op",
-			eventType: "unknown_event_xyz",
-			body:      []byte(`{}`),
-			validSig:  true,
+			name:       "unsupported event type returns 200 no-op",
+			eventType:  "unknown_event_xyz",
+			body:       []byte(`{}`),
+			validSig:   true,
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -251,4 +251,3 @@ func TestHandler_PRMergeDuration(t *testing.T) {
 		})
 	}
 }
-

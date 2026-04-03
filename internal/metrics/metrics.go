@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
 
 	"github.com/skip-the-line/internal/config"
 )
@@ -18,12 +18,12 @@ const meterName = "github.com/skip-the-line"
 
 // Metrics holds all application metric instruments.
 type Metrics struct {
-	eventsCounter          metric.Int64Counter
-	mergeHistogram         metric.Float64Histogram
-	deliveriesCounter      metric.Int64Counter
-	slackLookupHistogram   metric.Float64Histogram
-	slackSendHistogram     metric.Float64Histogram
-	teamMembersHistogram   metric.Float64Histogram
+	eventsCounter        metric.Int64Counter
+	mergeHistogram       metric.Float64Histogram
+	deliveriesCounter    metric.Int64Counter
+	slackLookupHistogram metric.Float64Histogram
+	slackSendHistogram   metric.Float64Histogram
+	teamMembersHistogram metric.Float64Histogram
 }
 
 // New registers all application metric instruments against mp.
@@ -111,7 +111,7 @@ func (m *Metrics) RecordPRMergeDuration(ctx context.Context, openedAt, mergedAt 
 
 // Outcome values used as labels on latency and delivery metrics.
 const (
-	OutcomeOK               = "ok"
+	OutcomeOK                = "ok"
 	OutcomeSlackLookupFailed = "slack_lookup_failed"
 	OutcomeSlackSendFailed   = "slack_send_failed"
 	OutcomeError             = "error"

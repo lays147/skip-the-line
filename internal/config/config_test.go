@@ -19,24 +19,24 @@ func TestLoad_MissingRequiredVariables(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "missing GITHUB_WEBHOOK_SECRET",
-			setEnv:  func(t *testing.T) {
+			name: "missing GITHUB_WEBHOOK_SECRET",
+			setEnv: func(t *testing.T) {
 				t.Setenv("GITHUB_TOKEN", "ghtoken")
 				t.Setenv("SLACK_BOT_TOKEN", "xoxb-token")
 			},
 			wantErr: true,
 		},
 		{
-			name:    "missing GITHUB_TOKEN",
-			setEnv:  func(t *testing.T) {
+			name: "missing GITHUB_TOKEN",
+			setEnv: func(t *testing.T) {
 				t.Setenv("GITHUB_WEBHOOK_SECRET", "secret")
 				t.Setenv("SLACK_BOT_TOKEN", "xoxb-token")
 			},
 			wantErr: true,
 		},
 		{
-			name:    "missing SLACK_BOT_TOKEN",
-			setEnv:  func(t *testing.T) {
+			name: "missing SLACK_BOT_TOKEN",
+			setEnv: func(t *testing.T) {
 				t.Setenv("GITHUB_WEBHOOK_SECRET", "secret")
 				t.Setenv("GITHUB_TOKEN", "ghtoken")
 			},
