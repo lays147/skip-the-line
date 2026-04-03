@@ -1,3 +1,4 @@
+[![Tests](https://github.com/lays147/skip-the-line/actions/workflows/ci.yml/badge.svg)](https://github.com/lays147/skip-the-line/actions/workflows/ci.yml)
 # skip-the-line
 
 Skip The Line has the purpose to reduce the cognitive toil of pinging coworkers to review a PR and for the author to keep checking GitHub for reviews on it's own PR's. 
