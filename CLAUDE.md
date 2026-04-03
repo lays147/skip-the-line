@@ -51,6 +51,8 @@ go test -run TestFunctionName ./internal/notification/
 
 **`subscriptions.yaml`** is embedded at compile time; adding/removing subscribers requires a rebuild.
 
+**Errors** all errors should be wrapped using %v. Errors inside the same package doesn't need to be wrapped.
+
 ## Testing Patterns
 
 - Table-driven tests with `t.Run` subtests throughout
