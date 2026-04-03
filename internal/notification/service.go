@@ -9,8 +9,12 @@ import (
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/subscription"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
+
+const tracerName = "github.com/skip-the-line"
 
 //go:generate moq -out ../mocks/mock_notification_service.go -pkg mocks . NotificationServicer
 
@@ -69,6 +73,13 @@ func (s *NotificationService) Notify(ctx context.Context, eventType string, even
 //
 // Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendDM
 func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude, msg, eventType string) error {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "notification.sendToRecipients")
+	span.SetAttributes(
+		attribute.String("event_type", eventType),
+		attribute.Int("recipient_count", len(recipients)),
+	)
+	defer span.End()
+
 	for username := range recipients {
 		if username == exclude {
 			continue
@@ -78,6 +89,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 			// not a subscriber — skip silently
 			continue
 		}
+
 		lookupStart := time.Now()
 		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)
 		lookupDuration := time.Since(lookupStart)

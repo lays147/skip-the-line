@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"github.com/google/go-github/v62/github"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/oauth2"
 )
 
@@ -42,6 +45,13 @@ func NewClient(token, baseURL string) *Client {
 // GetTeamMembers returns all member usernames for the given org/team slug.
 // It satisfies the notification.GitHubTeamResolver interface.
 func (c *Client) GetTeamMembers(ctx context.Context, org, team string) ([]string, error) {
+	ctx, span := otel.Tracer("github.com/skip-the-line").Start(ctx, "github.GetTeamMembers")
+	span.SetAttributes(
+		attribute.String("org", org),
+		attribute.String("team", team),
+	)
+	defer span.End()
+
 	var members []string
 	opts := &github.TeamListTeamMembersOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -50,6 +60,8 @@ func (c *Client) GetTeamMembers(ctx context.Context, org, team string) ([]string
 	for {
 		page, resp, err := c.gh.Teams.ListTeamMembersBySlug(ctx, org, team, opts)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("get team members %s/%s: %w", org, team, err)
 		}
 
