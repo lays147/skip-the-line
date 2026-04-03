@@ -46,11 +46,14 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 	}
 
 	pr := e.GetPullRequest()
-	msg := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	msg, err := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	if err != nil {
+		return err
+	}
 	return s.sendToRecipients(ctx, recipients, authorLogin, msg, "pull_request")
 }
 
-func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) string {
+func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) (string, error) {
 	blocks := []any{
 		map[string]any{
 			"type": "section",
@@ -83,5 +86,5 @@ func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, pr
 			},
 		},
 	}
-	return mustMarshalBlocks(blocks)
+	return marshalBlocks(blocks)
 }

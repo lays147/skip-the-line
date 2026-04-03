@@ -101,10 +101,10 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 	return nil
 }
 
-func mustMarshalBlocks(blocks []any) string {
+func marshalBlocks(blocks []any) (string, error) {
 	b, err := json.Marshal(blocks)
 	if err != nil {
-		panic(fmt.Sprintf("notification: failed to marshal blocks: %v", err))
+		return "", fmt.Errorf("notification: failed to marshal blocks: %w", err)
 	}
-	return string(b)
+	return string(b), nil
 }

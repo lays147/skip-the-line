@@ -27,13 +27,16 @@ func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *gith
 
 	pr := e.GetPullRequest()
 	approved := e.GetReview().GetState() == "approved"
-	msg := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
+	msg, err := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
+	if err != nil {
+		return err
+	}
 
 	recipients := map[string]struct{}{authorLogin: {}}
 	return s.sendToRecipients(ctx, recipients, "", msg, "pull_request_review")
 }
 
-func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) string {
+func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) (string, error) {
 	headerText := fmt.Sprintf("*<@%s> submitted a review on your pull request*", reviewerLogin)
 	buttonText := "View review"
 	if approved {
@@ -72,5 +75,5 @@ func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prU
 			},
 		},
 	}
-	return mustMarshalBlocks(blocks)
+	return marshalBlocks(blocks)
 }

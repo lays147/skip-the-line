@@ -38,13 +38,16 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 	}
 
 	pr := e.GetPullRequest()
-	msg := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	msg, err := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	if err != nil {
+		return err
+	}
 
 	// Exclude the commenter from notifications.
 	return s.sendToRecipients(ctx, recipients, commenterLogin, msg, "pull_request_review_comment")
 }
 
-func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) string {
+func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) (string, error) {
 	blocks := []any{
 		map[string]any{
 			"type": "section",
@@ -77,5 +80,5 @@ func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prUR
 			},
 		},
 	}
-	return mustMarshalBlocks(blocks)
+	return marshalBlocks(blocks)
 }
