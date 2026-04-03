@@ -29,8 +29,9 @@ generate:
 build:
 	CGO_ENABLED=0 go build -o skip-the-line ./cmd/server
 
-## lint: run golangci-lint
+## lint: run golangci-lint and format
 lint:
+	go fmt ./...
 	golangci-lint run ./...
 
 ## send-event: send a sample webhook to the running local app.
