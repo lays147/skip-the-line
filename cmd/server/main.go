@@ -67,7 +67,8 @@ func main() {
 	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger, m)
 
 	// Construct handlers.
-	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, m, subs, logger)
+	dedupTTL := time.Duration(cfg.DeliveryDedupTTLHours) * time.Hour
+	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, m, subs, logger, webhook.NewDedupCache(dedupTTL))
 	healthHandler := health.NewHandler()
 
 	// Register routes.

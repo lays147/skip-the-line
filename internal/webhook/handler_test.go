@@ -61,7 +61,7 @@ func newTestHandler(svc *mocks.NotificationServicerMock) *Handler {
 
 func newTestHandlerWithSubs(svc *mocks.NotificationServicerMock, subs subscription.Registry) *Handler {
 	m, _ := metrics.New(noop.NewMeterProvider())
-	return NewHandler(svc, testSecret, m, subs, noopLogger())
+	return NewHandler(svc, testSecret, m, subs, noopLogger(), NewDedupCache(24*time.Hour))
 }
 
 // mergedPRPayload returns a pull_request closed+merged event JSON body.

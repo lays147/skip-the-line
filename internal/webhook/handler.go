@@ -23,16 +23,18 @@ type Handler struct {
 	metrics       *metrics.Metrics
 	subs          subscription.Registry
 	logger        *zap.Logger
+	dedup         *dedupCache
 }
 
 // NewHandler constructs a new webhook Handler.
-func NewHandler(svc notification.NotificationServicer, secret string, m *metrics.Metrics, subs subscription.Registry, logger *zap.Logger) *Handler {
+func NewHandler(svc notification.NotificationServicer, secret string, m *metrics.Metrics, subs subscription.Registry, logger *zap.Logger, dedup *dedupCache) *Handler {
 	return &Handler{
 		svc:           svc,
 		webhookSecret: secret,
 		metrics:       m,
 		subs:          subs,
 		logger:        logger,
+		dedup:         dedup,
 	}
 }
 
@@ -46,6 +48,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 
 	log := logger.FromContext(ctx, h.logger)
+
+	// Suppress duplicate deliveries — GitHub retries on transient errors.
+	if id := r.Header.Get("X-GitHub-Delivery"); id != "" && h.dedup.SeenOrRecord(id) {
+		log.Debug("duplicate webhook delivery ignored", zap.String("delivery_id", id))
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	// Validate signature and read body.
 	body, err := github.ValidatePayload(r, []byte(h.webhookSecret))
