@@ -2,14 +2,13 @@ package notification
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/logger"
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/subscription"
+	"github.com/slack-go/slack"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -73,7 +72,7 @@ func (s *NotificationService) Notify(ctx context.Context, eventType string, even
 // when notifying reviewers, or the commenter when notifying the author).
 //
 // Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendDM
-func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude, msg, eventType string) error {
+func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude string, blocks []slack.Block, eventType string) error {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "notification.sendToRecipients")
 	span.SetAttributes(
 		attribute.String("event_type", eventType),
@@ -107,7 +106,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeOK)
 
 		sendStart := time.Now()
-		err = s.notifier.SendDM(ctx, slackUserID, msg)
+		err = s.notifier.SendDM(ctx, slackUserID, blocks)
 		s.metrics.RecordSlackSendDuration(ctx, time.Since(sendStart), outcomeFor(err))
 		if err != nil {
 			logger.FromContext(ctx, s.logger).Error("failed to send Slack DM",
@@ -128,12 +127,4 @@ func outcomeFor(err error) string {
 		return metrics.OutcomeError
 	}
 	return metrics.OutcomeOK
-}
-
-func marshalBlocks(blocks []any) (string, error) {
-	b, err := json.Marshal(blocks)
-	if err != nil {
-		return "", fmt.Errorf("notification: failed to marshal blocks: %w", err)
-	}
-	return string(b), nil
 }

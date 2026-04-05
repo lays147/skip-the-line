@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/logger"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
 
@@ -50,45 +51,32 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 	}
 
 	pr := e.GetPullRequest()
-	msg, err := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
-	if err != nil {
-		return err
-	}
-	return s.sendToRecipients(ctx, recipients, authorLogin, msg, "pull_request")
+	blocks := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
+	return s.sendToRecipients(ctx, recipients, authorLogin, blocks, "pull_request")
 }
 
-func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) (string, error) {
-	blocks := []any{
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("*Your review was requested by <@%s>*", requesterLogin),
+func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) []slack.Block {
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*Your review was requested by <@%s>*", requesterLogin),
 			},
-		},
-		map[string]any{"type": "divider"},
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
 			},
-		},
-		map[string]any{
-			"type": "actions",
-			"elements": []any{
-				map[string]any{
-					"type": "button",
-					"text": map[string]any{
-						"type":  "plain_text",
-						"text":  "Review now!",
-						"emoji": true,
-					},
-					"value": prURL,
-					"url":   prURL,
-				},
-			},
-		},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", "Review now!", false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = prURL
+			return slack.NewActionBlock("", btn)
+		}(),
 	}
-	return marshalBlocks(blocks)
 }

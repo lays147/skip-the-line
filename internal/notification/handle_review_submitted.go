@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/slack-go/slack"
 )
 
 func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *github.PullRequestReviewEvent) error {
@@ -27,53 +28,41 @@ func (s *NotificationService) handleReviewSubmitted(ctx context.Context, e *gith
 
 	pr := e.GetPullRequest()
 	approved := e.GetReview().GetState() == "approved"
-	msg, err := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
-	if err != nil {
-		return err
-	}
+	blocks := buildReviewSubmittedBlocks(reviewerRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL(), approved)
 
 	recipients := map[string]struct{}{authorLogin: {}}
-	return s.sendToRecipients(ctx, recipients, "", msg, "pull_request_review")
+	return s.sendToRecipients(ctx, recipients, "", blocks, "pull_request_review")
 }
 
-func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) (string, error) {
+func buildReviewSubmittedBlocks(reviewerLogin string, prNumber int, prTitle, prURL string, approved bool) []slack.Block {
 	headerText := fmt.Sprintf("*<@%s> submitted a review on your pull request*", reviewerLogin)
 	buttonText := "View review"
 	if approved {
 		headerText = fmt.Sprintf("*<@%s> approved your pull request — it's ready to merge! :rocket:*", reviewerLogin)
 		buttonText = "Merge now!"
 	}
-	blocks := []any{
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": headerText,
+
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: headerText,
 			},
-		},
-		map[string]any{"type": "divider"},
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
 			},
-		},
-		map[string]any{
-			"type": "actions",
-			"elements": []any{
-				map[string]any{
-					"type": "button",
-					"text": map[string]any{
-						"type":  "plain_text",
-						"text":  buttonText,
-						"emoji": true,
-					},
-					"value": prURL,
-					"url":   prURL,
-				},
-			},
-		},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", buttonText, false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = prURL
+			return slack.NewActionBlock("", btn)
+		}(),
 	}
-	return marshalBlocks(blocks)
 }

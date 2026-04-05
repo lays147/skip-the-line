@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/slack-go/slack"
 )
 
 // mentionRegex matches @username patterns in comment bodies.
@@ -38,47 +39,34 @@ func (s *NotificationService) handleReviewComment(ctx context.Context, e *github
 	}
 
 	pr := e.GetPullRequest()
-	msg, err := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
-	if err != nil {
-		return err
-	}
+	blocks := buildReviewCommentBlocks(commenterRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
 
 	// Exclude the commenter from notifications.
-	return s.sendToRecipients(ctx, recipients, commenterLogin, msg, "pull_request_review_comment")
+	return s.sendToRecipients(ctx, recipients, commenterLogin, blocks, "pull_request_review_comment")
 }
 
-func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) (string, error) {
-	blocks := []any{
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("*<@%s> commented on your pull request*", commenterLogin),
+func buildReviewCommentBlocks(commenterLogin string, prNumber int, prTitle, prURL string) []slack.Block {
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*<@%s> commented on your pull request*", commenterLogin),
 			},
-		},
-		map[string]any{"type": "divider"},
-		map[string]any{
-			"type": "section",
-			"text": map[string]any{
-				"type": "mrkdwn",
-				"text": fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
 			},
-		},
-		map[string]any{
-			"type": "actions",
-			"elements": []any{
-				map[string]any{
-					"type": "button",
-					"text": map[string]any{
-						"type":  "plain_text",
-						"text":  "View comment",
-						"emoji": true,
-					},
-					"value": prURL,
-					"url":   prURL,
-				},
-			},
-		},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", "View comment", false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = prURL
+			return slack.NewActionBlock("", btn)
+		}(),
 	}
-	return marshalBlocks(blocks)
 }

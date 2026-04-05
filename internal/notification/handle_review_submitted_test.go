@@ -2,6 +2,7 @@ package notification_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
 
@@ -105,12 +107,12 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var capturedMessages []string
+			var capturedBlocks [][]slack.Block
 			dmCount := 0
 			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
+				SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
 					dmCount++
-					capturedMessages = append(capturedMessages, message)
+					capturedBlocks = append(capturedBlocks, blocks)
 					return tc.slackErr
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -135,9 +137,10 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 				t.Errorf("expected %d DM attempts, got %d", tc.wantDMCount, dmCount)
 			}
 			if tc.wantActorRef != "" {
-				for _, msg := range capturedMessages {
-					if !strings.Contains(msg, tc.wantActorRef) {
-						t.Errorf("expected message to contain actor ref %q, got: %s", tc.wantActorRef, msg)
+				for _, blocks := range capturedBlocks {
+					jsonStr, _ := json.Marshal(blocks)
+					if !strings.Contains(string(jsonStr), tc.wantActorRef) {
+						t.Errorf("expected message to contain actor ref %q, got: %s", tc.wantActorRef, jsonStr)
 					}
 				}
 			}

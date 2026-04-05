@@ -2,12 +2,14 @@ package notification_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
 
@@ -125,12 +127,12 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var capturedMessages []string
+			var capturedBlocks [][]slack.Block
 			dmUserIDs := []string{}
 			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, slackUserID, message string) error {
+				SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
 					dmUserIDs = append(dmUserIDs, slackUserID)
-					capturedMessages = append(capturedMessages, message)
+					capturedBlocks = append(capturedBlocks, blocks)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -167,9 +169,10 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 			if tc.wantCommenterRef != "" {
 				// json.Marshal HTML-escapes < and > so we check for the ref
 				// value directly rather than the full <@ref> mention syntax.
-				for _, msg := range capturedMessages {
-					if !strings.Contains(msg, tc.wantCommenterRef) {
-						t.Errorf("expected message to contain commenter ref %q, got: %s", tc.wantCommenterRef, msg)
+				for _, blocks := range capturedBlocks {
+					jsonStr, _ := json.Marshal(blocks)
+					if !strings.Contains(string(jsonStr), tc.wantCommenterRef) {
+						t.Errorf("expected message to contain commenter ref %q, got: %s", tc.wantCommenterRef, jsonStr)
 					}
 				}
 			}

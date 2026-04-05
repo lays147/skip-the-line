@@ -6,6 +6,7 @@ package mocks
 import (
 	"context"
 	"github.com/skip-the-line/internal/notification"
+	"github.com/slack-go/slack"
 	"sync"
 )
 
@@ -22,7 +23,7 @@ var _ notification.SlackNotifier = &SlackNotifierMock{}
 //			LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
 //				panic("mock out the LookupUserByEmail method")
 //			},
-//			SendDMFunc: func(ctx context.Context, email string, message string) error {
+//			SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
 //				panic("mock out the SendDM method")
 //			},
 //		}
@@ -36,7 +37,7 @@ type SlackNotifierMock struct {
 	LookupUserByEmailFunc func(ctx context.Context, email string) (string, error)
 
 	// SendDMFunc mocks the SendDM method.
-	SendDMFunc func(ctx context.Context, slackUserID string, message string) error
+	SendDMFunc func(ctx context.Context, slackUserID string, blocks []slack.Block) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -53,8 +54,8 @@ type SlackNotifierMock struct {
 			Ctx context.Context
 			// SlackUserID is the slackUserID argument value.
 			SlackUserID string
-			// Message is the message argument value.
-			Message string
+			// Blocks is the blocks argument value.
+			Blocks []slack.Block
 		}
 	}
 	lockLookupUserByEmail sync.RWMutex
@@ -98,23 +99,23 @@ func (mock *SlackNotifierMock) LookupUserByEmailCalls() []struct {
 }
 
 // SendDM calls SendDMFunc.
-func (mock *SlackNotifierMock) SendDM(ctx context.Context, slackUserID string, message string) error {
+func (mock *SlackNotifierMock) SendDM(ctx context.Context, slackUserID string, blocks []slack.Block) error {
 	if mock.SendDMFunc == nil {
 		panic("SlackNotifierMock.SendDMFunc: method is nil but SlackNotifier.SendDM was just called")
 	}
 	callInfo := struct {
 		Ctx         context.Context
 		SlackUserID string
-		Message     string
+		Blocks      []slack.Block
 	}{
 		Ctx:         ctx,
 		SlackUserID: slackUserID,
-		Message:     message,
+		Blocks:      blocks,
 	}
 	mock.lockSendDM.Lock()
 	mock.calls.SendDM = append(mock.calls.SendDM, callInfo)
 	mock.lockSendDM.Unlock()
-	return mock.SendDMFunc(ctx, slackUserID, message)
+	return mock.SendDMFunc(ctx, slackUserID, blocks)
 }
 
 // SendDMCalls gets all the calls that were made to SendDM.
@@ -124,12 +125,12 @@ func (mock *SlackNotifierMock) SendDM(ctx context.Context, slackUserID string, m
 func (mock *SlackNotifierMock) SendDMCalls() []struct {
 	Ctx         context.Context
 	SlackUserID string
-	Message     string
+	Blocks      []slack.Block
 } {
 	var calls []struct {
 		Ctx         context.Context
 		SlackUserID string
-		Message     string
+		Blocks      []slack.Block
 	}
 	mock.lockSendDM.RLock()
 	calls = mock.calls.SendDM
