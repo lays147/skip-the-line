@@ -2,6 +2,7 @@ package notification_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -111,6 +112,30 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			wantActorRef: "U-author@example.com",
 		},
 		{
+			name: "team resolution error: individual reviewers still notified",
+			event: &github.PullRequestEvent{
+				Action: strPtr("review_requested"),
+				PullRequest: &github.PullRequest{
+					User:    &github.User{Login: strPtr("author")},
+					HTMLURL: strPtr("https://github.com/org/repo/pull/6"),
+					Title:   strPtr("Team Error PR"),
+					RequestedReviewers: []*github.User{
+						{Login: strPtr("reviewer1")},
+					},
+					RequestedTeams: []*github.Team{
+						{Slug: strPtr("broken-team")},
+					},
+				},
+				Repo: &github.Repository{
+					Owner: &github.User{Login: strPtr("org")},
+				},
+			},
+			resolverMembers: nil, // broken-team returns an error (see mock below)
+			wantDMEmails:    []string{"reviewer1@example.com"},
+			wantDMCount:     1, // individual reviewer still receives DM despite team failure
+			wantActorRef:    "U-author@example.com",
+		},
+		{
 			name: "unsubscribed author falls back to GitHub login in message",
 			event: &github.PullRequestEvent{
 				Action: strPtr("review_requested"),
@@ -148,6 +173,9 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			}
 			mockResolver := &mocks.GitHubTeamResolverMock{
 				GetTeamMembersFunc: func(ctx context.Context, org, team string) ([]string, error) {
+					if team == "broken-team" {
+						return nil, errors.New("github API unavailable")
+					}
 					if tc.resolverMembers != nil {
 						if members, ok := tc.resolverMembers[team]; ok {
 							return members, nil

@@ -12,6 +12,7 @@ import (
 )
 
 const pkgName = "github.com/skip-the-line"
+
 // Client wraps the slack-go/slack client and implements notification.SlackNotifier.
 type Client struct {
 	api *slack.Client

@@ -88,6 +88,23 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 			wantDMCount: 0,
 		},
 		{
+			name: "underscore username in @mention is captured as recipient",
+			event: &github.PullRequestReviewCommentEvent{
+				PullRequest: &github.PullRequest{
+					User:    &github.User{Login: strPtr("author")},
+					HTMLURL: strPtr("https://github.com/org/repo/pull/6"),
+					Title:   strPtr("Underscore Mention PR"),
+				},
+				Comment: &github.PullRequestComment{
+					User: &github.User{Login: strPtr("reviewer1")},
+					Body: strPtr("Hey @my_reviewer please take a look"),
+				},
+			},
+			// my_reviewer is not in testSubs so no DM, but author still gets one
+			wantDMCount: 1,
+			wantEmails:  []string{"author@example.com"},
+		},
+		{
 			name: "unsubscribed commenter falls back to GitHub login in message",
 			event: &github.PullRequestReviewCommentEvent{
 				PullRequest: &github.PullRequest{

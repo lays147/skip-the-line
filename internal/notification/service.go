@@ -123,7 +123,6 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 	return nil
 }
 
-
 func outcomeFor(err error) string {
 	if err != nil {
 		return metrics.OutcomeError

@@ -19,6 +19,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 		wantDMCount  int
 		wantActorRef string // expected value inside <@...> in the DM message
 		slackErr     error
+		lookupErr    error
 	}{
 		{
 			name: "author is notified when reviewer submits review",
@@ -69,6 +70,22 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 			wantActorRef: "U-reviewer1@example.com",
 		},
 		{
+			name: "LookupUserByEmail error: no DM sent, Notify returns nil",
+			event: &github.PullRequestReviewEvent{
+				Action: strPtr("submitted"),
+				PullRequest: &github.PullRequest{
+					User:    &github.User{Login: strPtr("author")},
+					HTMLURL: strPtr("https://github.com/org/repo/pull/5"),
+					Title:   strPtr("Lookup Error PR"),
+				},
+				Review: &github.PullRequestReview{
+					User: &github.User{Login: strPtr("reviewer1")},
+				},
+			},
+			lookupErr:   errors.New("slack lookup unavailable"),
+			wantDMCount: 0, // lookup failed → no DM attempted, error swallowed
+		},
+		{
 			name: "unsubscribed reviewer falls back to GitHub login in message",
 			event: &github.PullRequestReviewEvent{
 				Action: strPtr("submitted"),
@@ -97,6 +114,9 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 					return tc.slackErr
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
+					if tc.lookupErr != nil {
+						return "", tc.lookupErr
+					}
 					return "U-" + email, nil
 				},
 			}
