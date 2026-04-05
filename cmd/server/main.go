@@ -30,8 +30,8 @@ func main() {
 		panic("failed to load config: " + err.Error())
 	}
 
-	// Initialise logger (stdout + OTel bridge).
-	logger, lp, err := newLogger(cfg)
+	// Initialise logger (stdout JSON).
+	logger, err := newLogger(cfg)
 	if err != nil {
 		panic("failed to initialise logger: " + err.Error())
 	}
@@ -119,7 +119,4 @@ func main() {
 		logger.Warn("meter provider shutdown error", zap.Error(err))
 	}
 
-	if err := lp.Shutdown(ctx); err != nil {
-		logger.Warn("log provider shutdown error", zap.Error(err))
-	}
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/skip-the-line/internal/logger"
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/subscription"
 	"go.opentelemetry.io/otel"
@@ -95,7 +96,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		lookupDuration := time.Since(lookupStart)
 		if err != nil {
 			s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeSlackLookupFailed)
-			s.logger.Warn("failed to look up Slack user",
+			logger.FromContext(ctx, s.logger).Warn("failed to look up Slack user",
 				zap.String("github_username", username),
 				zap.String("email", email),
 				zap.Error(err),
@@ -109,7 +110,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		err = s.notifier.SendDM(ctx, slackUserID, msg)
 		s.metrics.RecordSlackSendDuration(ctx, time.Since(sendStart), outcomeFor(err))
 		if err != nil {
-			s.logger.Error("failed to send Slack DM",
+			logger.FromContext(ctx, s.logger).Error("failed to send Slack DM",
 				zap.String("github_username", username),
 				zap.String("slack_user_id", slackUserID),
 				zap.Error(err),
@@ -121,6 +122,7 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 	}
 	return nil
 }
+
 
 func outcomeFor(err error) string {
 	if err != nil {

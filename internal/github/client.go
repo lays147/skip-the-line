@@ -11,6 +11,8 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const pkgName = "github.com/skip-the-line"
+
 // Client wraps the go-github SDK and implements notification.GitHubTeamResolver.
 type Client struct {
 	gh *github.Client
@@ -45,7 +47,7 @@ func NewClient(token, baseURL string) *Client {
 // GetTeamMembers returns all member usernames for the given org/team slug.
 // It satisfies the notification.GitHubTeamResolver interface.
 func (c *Client) GetTeamMembers(ctx context.Context, org, team string) ([]string, error) {
-	ctx, span := otel.Tracer("github.com/skip-the-line").Start(ctx, "github.GetTeamMembers")
+	ctx, span := otel.Tracer(pkgName).Start(ctx, "github.GetTeamMembers")
 	span.SetAttributes(
 		attribute.String("org", org),
 		attribute.String("team", team),

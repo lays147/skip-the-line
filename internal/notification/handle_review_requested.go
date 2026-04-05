@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/skip-the-line/internal/logger"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +29,7 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 		members, err := s.resolver.GetTeamMembers(ctx, org, teamSlug)
 		s.metrics.RecordTeamMembersDuration(ctx, time.Since(start), outcomeFor(err))
 		if err != nil {
-			s.logger.Error("failed to resolve team members",
+			logger.FromContext(ctx, s.logger).Error("failed to resolve team members",
 				zap.String("team", teamSlug),
 				zap.Error(err),
 			)

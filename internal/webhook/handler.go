@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/skip-the-line/internal/logger"
 	"github.com/skip-the-line/internal/metrics"
 	"github.com/skip-the-line/internal/notification"
 	"github.com/skip-the-line/internal/subscription"
@@ -44,12 +45,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
+	log := logger.FromContext(ctx, h.logger)
+
 	// Validate signature and read body.
 	body, err := github.ValidatePayload(r, []byte(h.webhookSecret))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "invalid signature")
-		h.logger.Warn("invalid webhook signature", zap.Error(err))
+		log.Warn("invalid webhook signature", zap.Error(err))
 		writeError(w, http.StatusUnauthorized, "invalid signature")
 		return
 	}
@@ -61,7 +64,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse the webhook payload into a typed SDK struct.
 	event, err := github.ParseWebHook(eventType, body)
 	if err != nil {
-		h.logger.Debug("unsupported or unparseable event type",
+		log.Debug("unsupported or unparseable event type",
 			zap.String("event_type", eventType),
 			zap.Error(err),
 		)
@@ -85,7 +88,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Dispatch to notification service.
 	if err := h.svc.Notify(r.Context(), eventType, event); err != nil {
-		h.logger.Error("notification service error",
+		log.Error("notification service error",
 			zap.String("event_type", eventType),
 			zap.Error(err),
 		)
