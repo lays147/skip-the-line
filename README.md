@@ -1,57 +1,66 @@
 [![Tests](https://github.com/lays147/skip-the-line/actions/workflows/ci.yml/badge.svg)](https://github.com/lays147/skip-the-line/actions/workflows/ci.yml)
+
 # skip-the-line
 
-Skip The Line has the purpose to reduce the cognitive toil of pinging coworkers to review a PR and for the author to keep checking GitHub for reviews on it's own PR's. 
+Skip The Line is a GitHub webhook service that delivers real-time Slack DMs for pull request activity — so reviewers never miss a review request and authors always know the moment someone approves or leaves feedback.
 
-With this automation we use GitHub Webhooks to send notifications via slack for reviewers to review and for an author to check out request changes or approves.
+No more pinging coworkers to look at your PR. No more refreshing GitHub to see if anyone has reviewed it. Your team gets a direct message, exactly when it matters.
 
-By using this automation your organization might have the opportunity to reduce the Mean Time to Merge (MTTM) to **about 40%**.
+> By using this service your organization may reduce Mean Time to Merge (MTTM) by around **40%**.
 
-## Prompted by me, built with AI
+## What it does
 
-> Project 98% built with [AWS Kiro](kiro.dev), 1% by Claude and 1% by me.
+**New review request** — when a PR is assigned for review, the reviewer gets a Slack DM with a direct link.
 
-This project was built as a study case of AWS Kiro. Further updates and refactorings were made using Claude.
+![PR review request notification](docs/images/pr-review.png)
+
+**Review submitted** — when a reviewer approves or requests changes, the PR author receives a Slack DM.
+
+![PR approved notification](docs/images/pr-approved.png)
+
+**Comment posted** — when someone comments on a PR, the author is notified via Slack DM.
+
+![PR comment notification](docs/images/pr-commented.png)
 
 ## How it works
 
 ```
-webhook → signature validation → event routing → subscriber resolution → Slack DM
+GitHub webhook → HMAC signature validation → event routing → subscriber resolution → Slack DM
 ```
 
-## Prerequisites
+GitHub sends a signed webhook payload to this service. The service validates the signature, routes the event by type and action, resolves the relevant recipients from a subscriber registry, and sends each one a Slack DM.
 
-- Go 1.26.1+
-- Docker & Docker Compose
-- A GitHub App or webhook configured with a secret
-- A Slack bot token (`xoxb-...`) with `users:read.email` and `chat:write` scopes
+## Quickstart (local development)
 
-## Quickstart
+**Requirements:** Go 1.26.1+, Docker, Docker Compose.
 
 ```bash
-make up
+cp .env.example .env   # fill in GITHUB_WEBHOOK_SECRET, GITHUB_TOKEN, SLACK_BOT_TOKEN
+make up                # starts the app + mock Slack/GitHub servers + OTel stack
 ```
 
-The app will be reachable at `http://localhost:8080`.
+The app is available at `http://localhost:8080`. Send a sample event with:
 
-## Environment Variables
+```bash
+make send-event EVENT=pull_request
+```
 
-| Variable | Description | Required | Default |
-|---|---|---|---|
-| `GITHUB_WEBHOOK_SECRET` | Secret used to validate webhook HMAC signatures | Yes | — |
-| `SLACK_BOT_TOKEN` | Slack bot OAuth token (`xoxb-...`) | Yes | — |
-| `GITHUB_TOKEN` | GitHub personal access token for team API calls | Yes | — |
-| `PORT` | HTTP listen port | No | `8080` |
-| `LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, `error` | No | `info` |
-| `ENVIRONMENT` | Deployment environment tag attached to every log and metric | No | `dev` |
-| `OTEL_SERVICE_NAME` | Service name reported to the OTel backend | No | `github-webhook-notifier` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC collector endpoint (e.g. `otel-collector:4317`); metrics are dropped when unset | No | — |
-| `SLACK_API_URL` | Override Slack API base URL (local dev / testing) | No | — |
-| `GITHUB_API_URL` | Override GitHub API base URL (local dev / testing) | No | — |
+### Makefile targets
 
-## Subscription Config
+| Target | Description |
+|---|---|
+| `make up` | Start the full stack with Docker Compose |
+| `make down` | Stop and remove the stack |
+| `make logs` | Tail app logs |
+| `make test` | Run all unit tests |
+| `make test-cover` | Run tests and open an HTML coverage report |
+| `make lint` | Run golangci-lint |
+| `make build` | Build the binary locally |
+| `make generate` | Regenerate moq mocks after an interface change |
 
-Add users to `subscriptions.yaml` to opt them in to notifications:
+## Subscribers
+
+The service maps GitHub usernames to Slack users via email. Add entries to `internal/subscription/subscriptions.yaml` before building:
 
 ```yaml
 subscriptions:
@@ -59,46 +68,15 @@ subscriptions:
     email: octocat@example.com
 ```
 
-The `email` field is used to look up the corresponding Slack user ID.
+Users who pull the published image can supply the file at runtime via the `SUBSCRIPTIONS_PATH` environment variable instead of rebuilding. See [Deployment.md](Deployment.md) for details.
 
-## Makefile Targets
+## Promoted by me, built with AI
 
-| Target | Description |
-|---|---|
-| `make up` | Start the full stack with Docker Compose |
-| `make down` | Stop and remove the Docker Compose stack |
-| `make logs` | Tail logs from the app service |
-| `make test` | Run all unit tests |
-| `make test-cover` | Run tests and generate HTML coverage report |
-| `make generate` | Regenerate all moq mocks |
-| `make build` | Build the binary locally |
-| `make lint` | Run golangci-lint |
+> Project 98% built with [AWS Kiro](https://kiro.dev), 1% by Claude, 1% by me.
 
-## Kubernetes Probes
+This project was built as a study case of AWS Kiro. Further updates and refactorings were made using Claude.
 
-The service exposes health endpoints for Kubernetes pod lifecycle management:
+## Documentation
 
-| Endpoint | Type | Success Response |
-|---|---|---|
-| `GET /healthz` | Liveness | `200 {"status":"ok"}` |
-| `GET /readyz` | Readiness | `200 {"status":"ready"}` |
-
-The readiness probe returns `503 {"status":"not ready"}` until all dependencies (config, subscriptions) are fully initialised.
-
-Example Kubernetes probe configuration:
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /readyz
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 10
-```
+- [Deployment.md](Deployment.md) — environment variables reference, Kubernetes manifests, ECS task definition, GitHub webhook setup
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to set up a dev environment, run tests, add mocks, and open a pull request
