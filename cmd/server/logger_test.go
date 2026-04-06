@@ -12,9 +12,9 @@ import (
 
 func baseConfig() config.Config {
 	return config.Config{
-		OTELServiceName: "test-service",
-		Environment:     "test",
-		LogLevel:        "info",
+		OTEL:        config.OTELConfig{ServiceName: "test-service"},
+		Environment: "test",
+		LogLevel:    "info",
 	}
 }
 
@@ -65,7 +65,7 @@ func TestNewLogger_DefaultFields(t *testing.T) {
 	defer logger.Sync() //nolint:errcheck
 
 	observed := zap.New(zapcore.NewTee(logger.Core(), fac),
-		zap.Fields(zap.String("service", cfg.OTELServiceName), zap.String("environment", cfg.Environment)),
+		zap.Fields(zap.String("service", cfg.OTEL.ServiceName), zap.String("environment", cfg.Environment)),
 	)
 	observed.Info("test message")
 
@@ -82,8 +82,8 @@ func TestNewLogger_DefaultFields(t *testing.T) {
 		}
 	}
 
-	if fields["service"] != cfg.OTELServiceName {
-		t.Errorf("service field: got %q, want %q", fields["service"], cfg.OTELServiceName)
+	if fields["service"] != cfg.OTEL.ServiceName {
+		t.Errorf("service field: got %q, want %q", fields["service"], cfg.OTEL.ServiceName)
 	}
 	if fields["environment"] != cfg.Environment {
 		t.Errorf("environment field: got %q, want %q", fields["environment"], cfg.Environment)

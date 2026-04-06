@@ -28,7 +28,7 @@ func newLoggerProviderWithWriter(t *testing.T, cfg config.Config, buf *bytes.Buf
 	}
 	res, err := resource.New(
 		context.Background(),
-		resource.WithAttributes(attribute.String("service.name", cfg.OTELServiceName)),
+		resource.WithAttributes(attribute.String("service.name", cfg.OTEL.ServiceName)),
 	)
 	if err != nil {
 		t.Fatalf("resource.New: %v", err)
@@ -65,8 +65,10 @@ func TestNewLoggerProviderWritesToStdout(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Config{
-				OTELServiceName:          "test-service",
-				OTELExporterOTLPEndpoint: tc.endpoint,
+				OTEL: config.OTELConfig{
+					ServiceName:      "test-service",
+					ExporterEndpoint: tc.endpoint,
+				},
 			}
 
 			var buf bytes.Buffer
@@ -108,8 +110,10 @@ func TestMetricsPipelinePreservation(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Config{
-				OTELServiceName:          "test-service",
-				OTELExporterOTLPEndpoint: tc.endpoint,
+				OTEL: config.OTELConfig{
+					ServiceName:      "test-service",
+					ExporterEndpoint: tc.endpoint,
+				},
 			}
 
 			mp, err := metrics.NewMeterProvider(cfg)

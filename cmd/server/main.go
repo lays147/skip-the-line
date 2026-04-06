@@ -70,20 +70,20 @@ func main() {
 	}
 
 	// Construct clients and services.
-	ghClient := githubclient.NewClient(cfg.GitHubToken, cfg.GitHubAPIURL)
-	slClient := slackclient.NewClient(cfg.SlackBotToken, cfg.SlackAPIURL)
+	ghClient := githubclient.NewClient(cfg.GitHub.Token, cfg.GitHub.APIURL)
+	slClient := slackclient.NewClient(cfg.Slack.BotToken, cfg.Slack.APIURL)
 	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger, m)
 
 	// Construct handlers.
-	dedupTTL := time.Duration(cfg.DeliveryDedupTTLHours) * time.Hour
-	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHubWebhookSecret, m, subs, logger, webhook.NewDedupCache(dedupTTL))
+	dedupTTL := time.Duration(cfg.HTTP.DeliveryDedupTTLHours) * time.Hour
+	webhookHandler := webhook.NewHandler(notifSvc, cfg.GitHub.WebhookSecret, m, subs, logger, webhook.NewDedupCache(dedupTTL))
 	healthHandler := health.NewHandler()
 
 	// Register routes.
 	// Webhook processing is wrapped with a hard deadline so that slow Slack or
 	// GitHub API calls cannot stall a goroutine indefinitely. The handler timeout
 	// is kept below WriteTimeout so the server can still write the 503 response.
-	handlerTimeout := time.Duration(cfg.HandlerTimeoutSeconds) * time.Second
+	handlerTimeout := time.Duration(cfg.HTTP.HandlerTimeoutSeconds) * time.Second
 	r := chi.NewRouter()
 	r.Post("/webhook", http.TimeoutHandler(webhookHandler, handlerTimeout, `{"error":"request timeout"}`).ServeHTTP)
 	r.Get("/healthz", healthHandler.Healthz)
@@ -93,17 +93,17 @@ func main() {
 	healthHandler.SetReady(true)
 
 	server := &http.Server{
-		Addr:         ":" + cfg.Port,
+		Addr:         ":" + cfg.HTTP.Port,
 		Handler:      r,
-		ReadTimeout:  time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout: time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(cfg.HTTP.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(cfg.HTTP.WriteTimeoutSeconds) * time.Second,
 	}
 
 	// Start server in background.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		logger.Info("server starting", zap.String("port", cfg.Port))
+		logger.Info("server starting", zap.String("port", cfg.HTTP.Port))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Fatal("server error", zap.Error(err))
 		}

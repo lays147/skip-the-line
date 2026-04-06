@@ -24,8 +24,8 @@ func newTracerProvider(cfg config.Config) (*sdktrace.TracerProvider, error) {
 	res, err := resource.New(
 		context.Background(),
 		resource.WithAttributes(
-			attribute.String("service.name", cfg.OTELServiceName),
-			attribute.String("service.version", cfg.OTELServiceVersion),
+			attribute.String("service.name", cfg.OTEL.ServiceName),
+			attribute.String("service.version", cfg.OTEL.ServiceVersion),
 			attribute.String("deployment.environment", cfg.Environment),
 		),
 	)
@@ -37,10 +37,10 @@ func newTracerProvider(cfg config.Config) (*sdktrace.TracerProvider, error) {
 		sdktrace.WithResource(res),
 	}
 
-	if cfg.OTELExporterOTLPEndpoint != "" {
+	if cfg.OTEL.ExporterEndpoint != "" {
 		exp, err := otlptracegrpc.New(
 			context.Background(),
-			otlptracegrpc.WithEndpoint(cfg.OTELExporterOTLPEndpoint),
+			otlptracegrpc.WithEndpoint(cfg.OTEL.ExporterEndpoint),
 			otlptracegrpc.WithInsecure(),
 		)
 		if err != nil {

@@ -153,8 +153,8 @@ func NewMeterProvider(cfg config.Config) (*sdkmetric.MeterProvider, error) {
 	res, err := resource.New(
 		context.Background(),
 		resource.WithAttributes(
-			attribute.String("service.name", cfg.OTELServiceName),
-			attribute.String("service.version", cfg.OTELServiceVersion),
+			attribute.String("service.name", cfg.OTEL.ServiceName),
+			attribute.String("service.version", cfg.OTEL.ServiceVersion),
 		),
 	)
 	if err != nil {
@@ -165,10 +165,10 @@ func NewMeterProvider(cfg config.Config) (*sdkmetric.MeterProvider, error) {
 		sdkmetric.WithResource(res),
 	}
 
-	if cfg.OTELExporterOTLPEndpoint != "" {
+	if cfg.OTEL.ExporterEndpoint != "" {
 		otlpExp, err := otlpmetricgrpc.New(
 			context.Background(),
-			otlpmetricgrpc.WithEndpoint(cfg.OTELExporterOTLPEndpoint),
+			otlpmetricgrpc.WithEndpoint(cfg.OTEL.ExporterEndpoint),
 			otlpmetricgrpc.WithInsecure(),
 		)
 		if err != nil {

@@ -33,9 +33,9 @@ func newLogger(cfg config.Config) (*zap.Logger, error) {
 		zap.AddCaller(),
 		zap.AddStacktrace(zapcore.ErrorLevel),
 		zap.Fields(
-			zap.String("service", cfg.OTELServiceName),
+			zap.String("service", cfg.OTEL.ServiceName),
 			zap.String("environment", cfg.Environment),
-			zap.String("version", cfg.OTELServiceVersion),
+			zap.String("version", cfg.OTEL.ServiceVersion),
 		),
 	)
 
