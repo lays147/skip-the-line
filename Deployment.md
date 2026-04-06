@@ -126,7 +126,7 @@ spec:
     spec:
       containers:
         - name: skip-the-line
-          image: public.ecr.aws/<ecr-alias>/skip-the-line:<tag>
+          image: public.ecr.aws/s1h5y5v1/skip-the-line:<tag>
           ports:
             - containerPort: 8080
           env:

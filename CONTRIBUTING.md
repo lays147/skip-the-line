@@ -70,6 +70,19 @@ Tests follow these conventions:
 - OTel providers are replaced with noop implementations: `noop.NewMeterProvider()`, `noop.NewTracerProvider()`
 - Mocks come from `internal/mocks` — never write them by hand
 
+### Makefile targets
+
+| Target | Description |
+|---|---|
+| `make up` | Start the full stack with Docker Compose |
+| `make down` | Stop and remove the stack |
+| `make logs` | Tail app logs |
+| `make test` | Run all unit tests |
+| `make test-cover` | Run tests and open an HTML coverage report |
+| `make lint` | Run golangci-lint |
+| `make build` | Build the binary locally |
+| `make generate` | Regenerate moq mocks after an interface change |
+
 ## Linting
 
 ```bash

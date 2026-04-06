@@ -30,12 +30,15 @@ GitHub webhook → HMAC signature validation → event routing → subscriber re
 
 GitHub sends a signed webhook payload to this service. The service validates the signature, routes the event by type and action, resolves the relevant recipients from a subscriber registry, and sends each one a Slack DM.
 
+## How to Deploy
+
+Check [Deployment.md](./Deployment.md)
+
 ## Quickstart (local development)
 
 **Requirements:** Go 1.26.1+, Docker, Docker Compose.
 
 ```bash
-cp .env.example .env   # fill in GITHUB_WEBHOOK_SECRET, GITHUB_TOKEN, SLACK_BOT_TOKEN
 make up                # starts the app + mock Slack/GitHub servers + OTel stack
 ```
 
@@ -44,19 +47,6 @@ The app is available at `http://localhost:8080`. Send a sample event with:
 ```bash
 make send-event EVENT=pull_request
 ```
-
-### Makefile targets
-
-| Target | Description |
-|---|---|
-| `make up` | Start the full stack with Docker Compose |
-| `make down` | Stop and remove the stack |
-| `make logs` | Tail app logs |
-| `make test` | Run all unit tests |
-| `make test-cover` | Run tests and open an HTML coverage report |
-| `make lint` | Run golangci-lint |
-| `make build` | Build the binary locally |
-| `make generate` | Regenerate moq mocks after an interface change |
 
 ## Subscribers
 
