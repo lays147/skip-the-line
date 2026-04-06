@@ -2,6 +2,8 @@ package subscription
 
 import (
 	_ "embed"
+	"fmt"
+	"os"
 
 	"gopkg.in/yaml.v3"
 )
@@ -27,10 +29,9 @@ type subscriptionFile struct {
 	Subscriptions []entry `yaml:"subscriptions"`
 }
 
-// Load parses the embedded subscriptions.yaml and returns a Registry.
-func Load() (Registry, error) {
+func parse(data []byte) (Registry, error) {
 	var f subscriptionFile
-	if err := yaml.Unmarshal(subscriptionsData, &f); err != nil {
+	if err := yaml.Unmarshal(data, &f); err != nil {
 		return nil, err
 	}
 	reg := make(Registry, len(f.Subscriptions))
@@ -38,4 +39,20 @@ func Load() (Registry, error) {
 		reg[s.GitHubUsername] = s.Email
 	}
 	return reg, nil
+}
+
+// Load parses the embedded subscriptions.yaml and returns a Registry.
+func Load() (Registry, error) {
+	return parse(subscriptionsData)
+}
+
+// LoadFromPath reads the YAML file at path and returns a Registry.
+// Use this when running from a pre-built Docker image and supplying
+// subscriptions via the SUBSCRIPTIONS_PATH environment variable.
+func LoadFromPath(path string) (Registry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading subscriptions file %q: %v", path, err)
+	}
+	return parse(data)
 }

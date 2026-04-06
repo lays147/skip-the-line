@@ -1,6 +1,8 @@
 package subscription
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -87,6 +89,46 @@ func TestParseSubscriptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadFromPath(t *testing.T) {
+	t.Run("valid file returns registry", func(t *testing.T) {
+		content := []byte(`subscriptions:
+  - github_username: octocat
+    email: octocat@example.com
+`)
+		path := filepath.Join(t.TempDir(), "subscriptions.yaml")
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+
+		reg, err := LoadFromPath(path)
+		if err != nil {
+			t.Fatalf("LoadFromPath() returned unexpected error: %v", err)
+		}
+		email, ok := reg.EmailFor("octocat")
+		if !ok || email != "octocat@example.com" {
+			t.Errorf("got email=%q ok=%v, want octocat@example.com true", email, ok)
+		}
+	})
+
+	t.Run("non-existent file returns error", func(t *testing.T) {
+		_, err := LoadFromPath("/non/existent/subscriptions.yaml")
+		if err == nil {
+			t.Fatal("expected error for missing file, got nil")
+		}
+	})
+
+	t.Run("malformed yaml returns error", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "subscriptions.yaml")
+		if err := os.WriteFile(path, []byte("subscriptions:\n  - github_username: [unclosed\n"), 0o600); err != nil {
+			t.Fatalf("failed to write temp file: %v", err)
+		}
+		_, err := LoadFromPath(path)
+		if err == nil {
+			t.Fatal("expected error for malformed yaml, got nil")
+		}
+	})
 }
 
 func TestRegistryEmailFor(t *testing.T) {

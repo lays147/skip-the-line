@@ -38,7 +38,15 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 
 	// Load subscriptions into in-memory registry.
-	subs, err := subscription.Load()
+	// If SUBSCRIPTIONS_PATH is set, load from that external file (useful when
+	// running the published Docker image). Otherwise fall back to the embedded
+	// subscriptions.yaml baked in at compile time.
+	var subs subscription.Registry
+	if cfg.SubscriptionsPath != "" {
+		subs, err = subscription.LoadFromPath(cfg.SubscriptionsPath)
+	} else {
+		subs, err = subscription.Load()
+	}
 	if err != nil {
 		logger.Fatal("failed to load subscriptions", zap.Error(err))
 	}
