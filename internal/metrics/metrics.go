@@ -152,7 +152,10 @@ func (m *Metrics) RecordTeamMembersDuration(ctx context.Context, d time.Duration
 func NewMeterProvider(cfg config.Config) (*sdkmetric.MeterProvider, error) {
 	res, err := resource.New(
 		context.Background(),
-		resource.WithAttributes(attribute.String("service.name", cfg.OTELServiceName)),
+		resource.WithAttributes(
+			attribute.String("service.name", cfg.OTELServiceName),
+			attribute.String("service.version", cfg.OTELServiceVersion),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create otel resource: %w", err)

@@ -25,6 +25,7 @@ func newTracerProvider(cfg config.Config) (*sdktrace.TracerProvider, error) {
 		context.Background(),
 		resource.WithAttributes(
 			attribute.String("service.name", cfg.OTELServiceName),
+			attribute.String("service.version", cfg.OTELServiceVersion),
 			attribute.String("deployment.environment", cfg.Environment),
 		),
 	)

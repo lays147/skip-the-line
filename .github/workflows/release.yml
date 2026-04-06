@@ -36,5 +36,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            OTEL_SERVICE_VERSION=${{ github.event.release.tag_name }}
           tags: |
             ${{ env.REGISTRY }}/${{ secrets.ECR_ALIAS }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}

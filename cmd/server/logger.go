@@ -35,6 +35,7 @@ func newLogger(cfg config.Config) (*zap.Logger, error) {
 		zap.Fields(
 			zap.String("service", cfg.OTELServiceName),
 			zap.String("environment", cfg.Environment),
+			zap.String("version", cfg.OTELServiceVersion),
 		),
 	)
 

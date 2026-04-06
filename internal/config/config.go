@@ -20,6 +20,7 @@ type Config struct {
 	// embedded subscriptions.yaml is ignored. Intended for users who pull the
 	// published Docker image and want to supply their own subscriber list.
 	SubscriptionsPath string `env:"SUBSCRIPTIONS_PATH"`
+	OTELServiceVersion string `env:"OTEL_SERVICE_VERSION" envDefault:"dev"`
 	// Optional overrides for local development / testing against mock servers.
 	SlackAPIURL  string `env:"SLACK_API_URL"`
 	GitHubAPIURL string `env:"GITHUB_API_URL"`
