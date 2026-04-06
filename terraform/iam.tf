@@ -35,11 +35,16 @@ data "aws_iam_policy_document" "ecr_public_push" {
     actions   = ["sts:GetServiceBearerToken"]
     resources = ["*"]
   }
+  
+  statement {
+    effect    = "Allow"
+    actions   = ["ecr-public:GetAuthorizationToken"]
+    resources = ["*"]
+  }
 
   statement {
     effect = "Allow"
     actions = [
-      "ecr-public:GetAuthorizationToken",
       "ecr-public:BatchCheckLayerAvailability",
       "ecr-public:PutImage",
       "ecr-public:InitiateLayerUpload",
