@@ -64,5 +64,6 @@ This project was built as a study case of AWS Kiro. Further updates and refactor
 
 ## Documentation
 
-- [Deployment.md](Deployment.md) — environment variables reference, Kubernetes manifests, ECS task definition, GitHub webhook setup
+- [Deployment.md](docs/Deployment.md) — environment variables reference, Kubernetes manifests, ECS task definition, GitHub webhook setup
+- [Metrics.md](docs/Metrics.md) — OpenTelemetry metrics exported by the application
 - [CONTRIBUTING.md](CONTRIBUTING.md) — how to set up a dev environment, run tests, add mocks, and open a pull request
