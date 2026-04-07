@@ -24,30 +24,26 @@ Install golangci-lint following the [official instructions](https://golangci-lin
 ```bash
 git clone https://github.com/lays147/skip-the-line.git
 cd skip-the-line
-cp .env.example .env
-```
-
-Edit `.env` and fill in the three required variables:
-
-```
-GITHUB_WEBHOOK_SECRET=any-local-secret
-GITHUB_TOKEN=<your-github-pat>
-SLACK_BOT_TOKEN=<your-slack-bot-token>
-```
-
-Start the full stack:
-
-```bash
 make up
 ```
 
-This starts the app, two HTTP echo servers (mock Slack on `:3000`, mock GitHub on `:4000`), and a Grafana OTel stack (UI at `http://localhost:3001`, admin/admin).
+This starts the app and a Grafana OTel stack (UI at `http://localhost:3000`, admin/admin).
 
-Send a sample webhook to your local instance:
+> **Note:** The local stack uses mock HTTP servers for Slack and GitHub. To test end-to-end with real Slack DMs you need a real `SLACK_BOT_TOKEN` — see [E2E testing](#e2e-testing).
 
-```bash
-make send-event EVENT=pull_request
-```
+## Makefile targets
+
+| Target | Description |
+|---|---|
+| `make up` | Start the full stack with Docker Compose |
+| `make down` | Stop and remove the stack |
+| `make logs` | Tail app logs |
+| `make build` | Build the binary locally |
+| `make test` | Run all unit tests |
+| `make test-cover` | Run tests and open an HTML coverage report |
+| `make lint` | Run golangci-lint |
+| `make generate` | Regenerate moq mocks after an interface change |
+| `make send-event EVENT=<event>` | Send a sample webhook payload to the local app |
 
 ## Running tests
 
@@ -70,19 +66,6 @@ Tests follow these conventions:
 - OTel providers are replaced with noop implementations: `noop.NewMeterProvider()`, `noop.NewTracerProvider()`
 - Mocks come from `internal/mocks` — never write them by hand
 
-### Makefile targets
-
-| Target | Description |
-|---|---|
-| `make up` | Start the full stack with Docker Compose |
-| `make down` | Stop and remove the stack |
-| `make logs` | Tail app logs |
-| `make test` | Run all unit tests |
-| `make test-cover` | Run tests and open an HTML coverage report |
-| `make lint` | Run golangci-lint |
-| `make build` | Build the binary locally |
-| `make generate` | Regenerate moq mocks after an interface change |
-
 ## Linting
 
 ```bash
@@ -103,13 +86,52 @@ make generate
 
 Never edit files inside `internal/mocks/` by hand — they will be overwritten.
 
+## E2E testing
+
+To verify that Slack DMs are actually delivered you need a real Slack bot token and your GitHub username registered in `internal/subscription/subscriptions.yaml`.
+
+1. Add yourself to the subscriptions file and rebuild:
+   ```yaml
+   subscriptions:
+     - github_username: your-github-username
+       email: your-slack-email@example.com
+   ```
+
+2. Start the stack with a real Slack token:
+   ```bash
+   SLACK_BOT_TOKEN=xoxb-your-token make up
+   ```
+
+3. Send a sample event, targeting your GitHub username:
+   ```bash
+   NOTIFICATION_TARGET=your-github-username make send-event EVENT=pull_request
+   ```
+
+   The `NOTIFICATION_TARGET` env var controls which GitHub username appears as the notification recipient in the payload — set it to your own username so the DM lands in your Slack.
+
+Supported events for `make send-event`:
+
+| `EVENT` value | What it simulates |
+|---|---|
+| `pull_request` | Review requested — DM sent to the reviewer (`NOTIFICATION_TARGET`) |
+| `pull_request_review` | Review approved — DM sent to the PR author (`NOTIFICATION_TARGET`) |
+| `pull_request_review_comment` | Comment posted — DM sent to the PR author (`NOTIFICATION_TARGET`) |
+
+You can also call the script directly for full control over all variables:
+
+```bash
+NOTIFICATION_TARGET=your-github-username \
+WEBHOOK_SECRET=test-secret \
+./scripts/send-webhook.sh pull_request_review
+```
+
 ## Adding a new event type
 
 1. Add a handler method in `internal/notification/service.go`
 2. Register the new event type/action in the routing switch
 3. Add the corresponding interface method to `internal/notification/recipients.go` if a new external call is needed, then run `make generate`
 4. Write table-driven tests in `internal/notification/service_test.go`
-5. Add a sample payload under `scripts/` and wire it into `send-webhook.sh` so it can be tested with `make send-event`
+5. Add a payload function in `scripts/send-webhook.sh` and wire it into the `case` block
 
 ## Project layout
 

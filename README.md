@@ -39,14 +39,10 @@ Check [Deployment.md](./Deployment.md)
 **Requirements:** Go 1.26.1+, Docker, Docker Compose.
 
 ```bash
-make up                # starts the app + mock Slack/GitHub servers + OTel stack
+make up                # starts the app
 ```
 
-The app is available at `http://localhost:8080`. Send a sample event with:
-
-```bash
-make send-event EVENT=pull_request
-```
+The app is available at `http://localhost:8080`. See [CONTRIBUTING.md](CONTRIBUTING.md) for all available `make` targets and E2E testing instructions.
 
 ## Subscribers
 
