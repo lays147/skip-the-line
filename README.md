@@ -2,8 +2,6 @@
 
 ![skip-the-line](docs/images/logo.svg)
 
-# skip-the-line
-
 Skip The Line is a GitHub webhook service that delivers real-time Slack DMs for pull request activity — so reviewers never miss a review request and authors always know the moment someone approves or leaves feedback.
 
 No more pinging coworkers to look at your PR. No more refreshing GitHub to see if anyone has reviewed it. Your team gets a direct message, exactly when it matters.
