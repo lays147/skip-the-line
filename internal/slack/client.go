@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/skip-the-line/internal/notifier"
 	"github.com/slack-go/slack"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,7 +13,7 @@ import (
 
 const pkgName = "github.com/skip-the-line"
 
-// Client wraps the slack-go/slack client and implements notification.SlackNotifier.
+// Client wraps the slack-go/slack client and implements notification.Notifier.
 type Client struct {
 	api *slack.Client
 }
@@ -43,12 +44,14 @@ func (c *Client) LookupUserByEmail(ctx context.Context, email string) (string, e
 	return user.ID, nil
 }
 
-// SendDM opens a direct message channel with the given Slack user ID and posts
-// the Block Kit blocks.
-func (c *Client) SendDM(ctx context.Context, slackUserID string, blocks []slack.Block) error {
-	ctx, span := otel.Tracer(pkgName).Start(ctx, "slack.SendDM")
+// SendNotification opens a direct message channel with the given Slack user ID
+// and posts a Block Kit message rendered from msg.
+func (c *Client) SendNotification(ctx context.Context, slackUserID string, msg notifier.Message) error {
+	ctx, span := otel.Tracer(pkgName).Start(ctx, "slack.SendNotification")
 	span.SetAttributes(attribute.String("slack_user_id", slackUserID))
 	defer span.End()
+
+	blocks := buildBlocks(msg)
 
 	channel, _, _, err := c.api.OpenConversationContext(ctx, &slack.OpenConversationParameters{
 		Users: []string{slackUserID},
@@ -67,4 +70,104 @@ func (c *Client) SendDM(ctx context.Context, slackUserID string, blocks []slack.
 	}
 
 	return nil
+}
+
+// buildBlocks converts a platform-agnostic Message into Slack Block Kit blocks.
+func buildBlocks(msg notifier.Message) []slack.Block {
+	switch msg.EventType {
+	case notifier.EventReviewRequested:
+		return buildReviewRequestedBlocks(msg)
+	case notifier.EventReviewSubmitted:
+		return buildReviewSubmittedBlocks(msg)
+	case notifier.EventReviewComment:
+		return buildReviewCommentBlocks(msg)
+	default:
+		return []slack.Block{}
+	}
+}
+
+func buildReviewRequestedBlocks(msg notifier.Message) []slack.Block {
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*Your review was requested by <@%s>*", msg.AuthorID),
+			},
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", msg.PRNumber, msg.PRTitle),
+			},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", "Review now!", false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = msg.PRURL
+			return slack.NewActionBlock("", btn)
+		}(),
+	}
+}
+
+func buildReviewSubmittedBlocks(msg notifier.Message) []slack.Block {
+	approved := msg.ReviewState == "approved"
+	headerText := fmt.Sprintf("*<@%s> submitted a review on your pull request*", msg.AuthorID)
+	buttonText := "View review"
+	if approved {
+		headerText = fmt.Sprintf("*<@%s> approved your pull request — it's ready to merge! :rocket:*", msg.AuthorID)
+		buttonText = "Merge now!"
+	}
+
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: headerText,
+			},
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", msg.PRNumber, msg.PRTitle),
+			},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", buttonText, false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = msg.PRURL
+			return slack.NewActionBlock("", btn)
+		}(),
+	}
+}
+
+func buildReviewCommentBlocks(msg notifier.Message) []slack.Block {
+	return []slack.Block{
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*<@%s> commented on your pull request*", msg.AuthorID),
+			},
+			nil, nil,
+		),
+		slack.NewDividerBlock(),
+		slack.NewSectionBlock(
+			&slack.TextBlockObject{
+				Type: slack.MarkdownType,
+				Text: fmt.Sprintf("*PR*: #%d | %s", msg.PRNumber, msg.PRTitle),
+			},
+			nil, nil,
+		),
+		func() slack.Block {
+			btnTxt := slack.NewTextBlockObject("plain_text", "View comment", false, false)
+			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
+			btn.URL = msg.PRURL
+			return slack.NewActionBlock("", btn)
+		}(),
+	}
 }

@@ -9,7 +9,6 @@ func setRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("GITHUB_WEBHOOK_SECRET", "secret")
 	t.Setenv("GITHUB_TOKEN", "ghtoken")
-	t.Setenv("SLACK_BOT_TOKEN", "xoxb-token")
 }
 
 func TestLoad_MissingRequiredVariables(t *testing.T) {
@@ -22,7 +21,6 @@ func TestLoad_MissingRequiredVariables(t *testing.T) {
 			name: "missing GITHUB_WEBHOOK_SECRET",
 			setEnv: func(t *testing.T) {
 				t.Setenv("GITHUB_TOKEN", "ghtoken")
-				t.Setenv("SLACK_BOT_TOKEN", "xoxb-token")
 			},
 			wantErr: true,
 		},
@@ -30,20 +28,11 @@ func TestLoad_MissingRequiredVariables(t *testing.T) {
 			name: "missing GITHUB_TOKEN",
 			setEnv: func(t *testing.T) {
 				t.Setenv("GITHUB_WEBHOOK_SECRET", "secret")
-				t.Setenv("SLACK_BOT_TOKEN", "xoxb-token")
 			},
 			wantErr: true,
 		},
 		{
-			name: "missing SLACK_BOT_TOKEN",
-			setEnv: func(t *testing.T) {
-				t.Setenv("GITHUB_WEBHOOK_SECRET", "secret")
-				t.Setenv("GITHUB_TOKEN", "ghtoken")
-			},
-			wantErr: true,
-		},
-		{
-			name:    "all required variables set",
+			name:    "all required variables set (no SLACK_BOT_TOKEN needed at config level)",
 			setEnv:  setRequiredEnv,
 			wantErr: false,
 		},
@@ -52,7 +41,7 @@ func TestLoad_MissingRequiredVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Unset all required env vars so each sub-test starts clean.
-			for _, key := range []string{"GITHUB_WEBHOOK_SECRET", "GITHUB_TOKEN", "SLACK_BOT_TOKEN"} {
+			for _, key := range []string{"GITHUB_WEBHOOK_SECRET", "GITHUB_TOKEN"} {
 				saved, exists := os.LookupEnv(key)
 				os.Unsetenv(key)
 				if exists {
@@ -97,6 +86,9 @@ func TestLoad_OptionalDefaults(t *testing.T) {
 	}
 	if cfg.OTEL.ServiceVersion != "dev" {
 		t.Errorf("expected OTEL.ServiceVersion=dev, got %q", cfg.OTEL.ServiceVersion)
+	}
+	if cfg.NotificationPlatform != "slack" {
+		t.Errorf("expected NotificationPlatform=slack, got %q", cfg.NotificationPlatform)
 	}
 }
 
@@ -160,5 +152,27 @@ func TestLoad_GitHubAndSlackConfig(t *testing.T) {
 	}
 	if cfg.Slack.APIURL != "http://slack.mock:3000/api/" {
 		t.Errorf("expected Slack.APIURL=http://slack.mock:3000/api/, got %q", cfg.Slack.APIURL)
+	}
+}
+
+func TestLoad_GoogleChatConfig(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("NOTIFICATION_PLATFORM", "google_chat")
+	t.Setenv("GCHAT_CREDENTIALS_JSON", `{"type":"service_account"}`)
+	t.Setenv("GCHAT_ADMIN_EMAIL", "admin@example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.NotificationPlatform != "google_chat" {
+		t.Errorf("expected NotificationPlatform=google_chat, got %q", cfg.NotificationPlatform)
+	}
+	if cfg.GoogleChat.CredentialsJSON != `{"type":"service_account"}` {
+		t.Errorf("unexpected GoogleChat.CredentialsJSON: %q", cfg.GoogleChat.CredentialsJSON)
+	}
+	if cfg.GoogleChat.AdminEmail != "admin@example.com" {
+		t.Errorf("expected GoogleChat.AdminEmail=admin@example.com, got %q", cfg.GoogleChat.AdminEmail)
 	}
 }

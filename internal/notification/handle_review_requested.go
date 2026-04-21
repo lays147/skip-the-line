@@ -2,12 +2,11 @@ package notification
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/logger"
-	"github.com/slack-go/slack"
+	"github.com/skip-the-line/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -41,42 +40,22 @@ func (s *NotificationService) handleReviewRequested(ctx context.Context, e *gith
 		}
 	}
 
-	// Resolve the PR author's Slack ID so reviewers receive a clickable mention.
+	// Resolve the PR author's platform user ID so reviewers receive a clickable mention.
 	// Falls back to the GitHub login if the author is not subscribed.
 	authorRef := authorLogin
 	if email, ok := s.subs.EmailFor(authorLogin); ok {
-		if slackID, err := s.notifier.LookupUserByEmail(ctx, email); err == nil {
-			authorRef = slackID
+		if userID, err := s.notifier.LookupUserByEmail(ctx, email); err == nil {
+			authorRef = userID
 		}
 	}
 
 	pr := e.GetPullRequest()
-	blocks := buildReviewRequestedBlocks(authorRef, pr.GetNumber(), pr.GetTitle(), pr.GetHTMLURL())
-	return s.sendToRecipients(ctx, recipients, authorLogin, blocks, "pull_request")
-}
-
-func buildReviewRequestedBlocks(requesterLogin string, prNumber int, prTitle, prURL string) []slack.Block {
-	return []slack.Block{
-		slack.NewSectionBlock(
-			&slack.TextBlockObject{
-				Type: slack.MarkdownType,
-				Text: fmt.Sprintf("*Your review was requested by <@%s>*", requesterLogin),
-			},
-			nil, nil,
-		),
-		slack.NewDividerBlock(),
-		slack.NewSectionBlock(
-			&slack.TextBlockObject{
-				Type: slack.MarkdownType,
-				Text: fmt.Sprintf("*PR*: #%d | %s", prNumber, prTitle),
-			},
-			nil, nil,
-		),
-		func() slack.Block {
-			btnTxt := slack.NewTextBlockObject("plain_text", "Review now!", false, false)
-			btn := slack.NewButtonBlockElement("", "review_button", btnTxt)
-			btn.URL = prURL
-			return slack.NewActionBlock("", btn)
-		}(),
+	msg := notifier.Message{
+		EventType: notifier.EventReviewRequested,
+		AuthorID:  authorRef,
+		PRNumber:  pr.GetNumber(),
+		PRTitle:   pr.GetTitle(),
+		PRURL:     pr.GetHTMLURL(),
 	}
+	return s.sendToRecipients(ctx, recipients, authorLogin, msg, "pull_request")
 }

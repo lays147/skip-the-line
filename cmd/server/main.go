@@ -20,6 +20,7 @@ import (
 	"github.com/skip-the-line/internal/webhook"
 
 	githubclient "github.com/skip-the-line/internal/github"
+	googlechatclient "github.com/skip-the-line/internal/googlechat"
 	slackclient "github.com/skip-the-line/internal/slack"
 )
 
@@ -69,10 +70,33 @@ func main() {
 		logger.Fatal("failed to register metrics", zap.Error(err))
 	}
 
+	// Construct the platform-specific notifier based on NOTIFICATION_PLATFORM.
+	var n notification.Notifier
+	switch cfg.NotificationPlatform {
+	case "google_chat":
+		if cfg.GoogleChat.CredentialsJSON == "" {
+			logger.Fatal("GCHAT_CREDENTIALS_JSON is required when NOTIFICATION_PLATFORM=google_chat")
+		}
+		if cfg.GoogleChat.AdminEmail == "" {
+			logger.Fatal("GCHAT_ADMIN_EMAIL is required when NOTIFICATION_PLATFORM=google_chat")
+		}
+		gcClient, gcErr := googlechatclient.NewClient([]byte(cfg.GoogleChat.CredentialsJSON), cfg.GoogleChat.AdminEmail)
+		if gcErr != nil {
+			logger.Fatal("failed to initialise Google Chat client", zap.Error(gcErr))
+		}
+		n = gcClient
+		logger.Info("notification platform: google_chat")
+	default: // "slack"
+		if cfg.Slack.BotToken == "" {
+			logger.Fatal("SLACK_BOT_TOKEN is required when NOTIFICATION_PLATFORM=slack")
+		}
+		n = slackclient.NewClient(cfg.Slack.BotToken, cfg.Slack.APIURL)
+		logger.Info("notification platform: slack")
+	}
+
 	// Construct clients and services.
 	ghClient := githubclient.NewClient(cfg.GitHub.Token, cfg.GitHub.APIURL)
-	slClient := slackclient.NewClient(cfg.Slack.BotToken, cfg.Slack.APIURL)
-	notifSvc := notification.NewNotificationService(ghClient, slClient, subs, logger, m)
+	notifSvc := notification.NewNotificationService(ghClient, n, subs, logger, m)
 
 	// Construct handlers.
 	dedupTTL := time.Duration(cfg.HTTP.DeliveryDedupTTLHours) * time.Hour
@@ -80,9 +104,9 @@ func main() {
 	healthHandler := health.NewHandler()
 
 	// Register routes.
-	// Webhook processing is wrapped with a hard deadline so that slow Slack or
-	// GitHub API calls cannot stall a goroutine indefinitely. The handler timeout
-	// is kept below WriteTimeout so the server can still write the 503 response.
+	// Webhook processing is wrapped with a hard deadline so that slow API calls
+	// cannot stall a goroutine indefinitely. The handler timeout is kept below
+	// WriteTimeout so the server can still write the 503 response.
 	handlerTimeout := time.Duration(cfg.HTTP.HandlerTimeoutSeconds) * time.Second
 	r := chi.NewRouter()
 	r.Post("/webhook", http.TimeoutHandler(webhookHandler, handlerTimeout, `{"error":"request timeout"}`).ServeHTTP)

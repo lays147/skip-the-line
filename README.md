@@ -2,7 +2,7 @@
 
 ![skip-the-line](docs/images/logo.svg)
 
-Skip The Line is a GitHub webhook service that delivers real-time Slack DMs for pull request activity — so reviewers never miss a review request and authors always know the moment someone approves or leaves feedback.
+Skip The Line is a GitHub webhook service that delivers real-time direct messages for pull request activity — so reviewers never miss a review request and authors always know the moment someone approves or leaves feedback. Notifications can be delivered via **Slack** or **Google Chat**, selected at startup via an environment variable.
 
 No more pinging coworkers to look at your PR. No more refreshing GitHub to see if anyone has reviewed it. Your team gets a direct message, exactly when it matters.
 
@@ -10,25 +10,25 @@ No more pinging coworkers to look at your PR. No more refreshing GitHub to see i
 
 ## What it does
 
-**New review request** — when a PR is assigned for review, the reviewer gets a Slack DM with a direct link.
+**New review request** — when a PR is assigned for review, the reviewer gets a direct message with a direct link.
 
 ![PR review request notification](docs/images/pr-review.png)
 
-**Review submitted** — when a reviewer approves or requests changes, the PR author receives a Slack DM.
+**Review submitted** — when a reviewer approves or requests changes, the PR author receives a direct message.
 
 ![PR approved notification](docs/images/pr-approved.png)
 
-**Comment posted** — when someone comments on a PR, the author is notified via Slack DM.
+**Comment posted** — when someone comments on a PR, the author is notified via direct message.
 
 ![PR comment notification](docs/images/pr-commented.png)
 
 ## How it works
 
 ```
-GitHub webhook → HMAC signature validation → event routing → subscriber resolution → Slack DM
+GitHub webhook → HMAC signature validation → event routing → subscriber resolution → DM (Slack or Google Chat)
 ```
 
-GitHub sends a signed webhook payload to this service. The service validates the signature, routes the event by type and action, resolves the relevant recipients from a subscriber registry, and sends each one a Slack DM.
+GitHub sends a signed webhook payload to this service. The service validates the signature, routes the event by type and action, resolves the relevant recipients from a subscriber registry, and sends each one a direct message via the configured platform.
 
 ## How to Deploy
 
@@ -46,7 +46,7 @@ The app is available at `http://localhost:8080`. See [CONTRIBUTING.md](CONTRIBUT
 
 ## Subscribers
 
-The service maps GitHub usernames to Slack users via email. Add entries to `internal/subscription/subscriptions.yaml` before building:
+The service maps GitHub usernames to chat platform users via email. Add entries to `internal/subscription/subscriptions.yaml` before building:
 
 ```yaml
 subscriptions:
