@@ -7,8 +7,8 @@ import (
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/logger"
 	"github.com/skip-the-line/internal/metrics"
+	"github.com/skip-the-line/internal/notifier"
 	"github.com/skip-the-line/internal/subscription"
-	"github.com/slack-go/slack"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -18,7 +18,7 @@ const tracerName = "github.com/skip-the-line"
 
 //go:generate moq -out ../mocks/mock_notification_service.go -pkg mocks . NotificationServicer
 
-// NotificationServicer orchestrates subscriber resolution and Slack delivery.
+// NotificationServicer orchestrates subscriber resolution and platform delivery.
 // It accepts typed structs from the google/go-github SDK directly.
 //
 // The event parameter accepts:
@@ -32,17 +32,17 @@ type NotificationServicer interface {
 // NotificationService is the concrete implementation of NotificationServicer.
 type NotificationService struct {
 	resolver GitHubTeamResolver
-	notifier SlackNotifier
+	notifier Notifier
 	subs     subscription.Registry
 	logger   *zap.Logger
 	metrics  *metrics.Metrics
 }
 
 // NewNotificationService constructs a NotificationService.
-func NewNotificationService(resolver GitHubTeamResolver, notifier SlackNotifier, subs subscription.Registry, logger *zap.Logger, m *metrics.Metrics) *NotificationService {
+func NewNotificationService(resolver GitHubTeamResolver, n Notifier, subs subscription.Registry, logger *zap.Logger, m *metrics.Metrics) *NotificationService {
 	return &NotificationService{
 		resolver: resolver,
-		notifier: notifier,
+		notifier: n,
 		subs:     subs,
 		logger:   logger,
 		metrics:  m,
@@ -67,12 +67,12 @@ func (s *NotificationService) Notify(ctx context.Context, eventType string, even
 	return nil
 }
 
-// sendToRecipients resolves emails and Slack user IDs for the recipient set,
-// then sends a DM to each. The exclude login is skipped (e.g. the PR author
-// when notifying reviewers, or the commenter when notifying the author).
+// sendToRecipients resolves emails and platform user IDs for the recipient set,
+// then sends a notification to each. The exclude login is skipped (e.g. the PR
+// author when notifying reviewers, or the commenter when notifying the author).
 //
-// Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendDM
-func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude string, blocks []slack.Block, eventType string) error {
+// Flow: unique GitHub usernames → Registry.EmailFor (O(1)) → LookupUserByEmail → SendNotification
+func (s *NotificationService) sendToRecipients(ctx context.Context, recipients map[string]struct{}, exclude string, msg notifier.Message, eventType string) error {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "notification.sendToRecipients")
 	span.SetAttributes(
 		attribute.String("event_type", eventType),
@@ -91,11 +91,11 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		}
 
 		lookupStart := time.Now()
-		slackUserID, err := s.notifier.LookupUserByEmail(ctx, email)
+		recipientID, err := s.notifier.LookupUserByEmail(ctx, email)
 		lookupDuration := time.Since(lookupStart)
 		if err != nil {
 			s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeSlackLookupFailed)
-			logger.FromContext(ctx, s.logger).Warn("failed to look up Slack user",
+			logger.FromContext(ctx, s.logger).Warn("failed to look up platform user",
 				zap.String("github_username", username),
 				zap.String("email", email),
 				zap.Error(err),
@@ -106,12 +106,12 @@ func (s *NotificationService) sendToRecipients(ctx context.Context, recipients m
 		s.metrics.RecordSlackLookupDuration(ctx, lookupDuration, metrics.OutcomeOK)
 
 		sendStart := time.Now()
-		err = s.notifier.SendDM(ctx, slackUserID, blocks)
+		err = s.notifier.SendNotification(ctx, recipientID, msg)
 		s.metrics.RecordSlackSendDuration(ctx, time.Since(sendStart), outcomeFor(err))
 		if err != nil {
-			logger.FromContext(ctx, s.logger).Error("failed to send Slack DM",
+			logger.FromContext(ctx, s.logger).Error("failed to send notification",
 				zap.String("github_username", username),
-				zap.String("slack_user_id", slackUserID),
+				zap.String("recipient_id", recipientID),
 				zap.Error(err),
 			)
 			s.metrics.RecordNotificationDelivery(ctx, eventType, metrics.OutcomeSlackSendFailed)

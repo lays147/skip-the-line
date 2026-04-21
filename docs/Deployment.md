@@ -2,7 +2,11 @@
 
 ## Prerequisites
 
-### 1. Slack Application
+### 1. Notification Platform
+
+Set `NOTIFICATION_PLATFORM` to choose where notifications are delivered. Accepted values: `slack` (default) or `google_chat`.
+
+#### Slack
 
 Create a Slack app with the following OAuth permission scopes:
 
@@ -14,6 +18,16 @@ Create a Slack app with the following OAuth permission scopes:
 | `users:read.email` | Look up users by email address |
 
 Install the app into your Slack workspace and save the **Bot User OAuth Token** (`xoxb-…`).
+
+#### Google Chat
+
+1. Create a **Google Cloud service account** and download its JSON key.
+2. Enable **Domain-wide Delegation** on the service account and grant it these OAuth scopes:
+   - `https://www.googleapis.com/auth/chat.bot` — send messages as the Chat app
+   - `https://www.googleapis.com/auth/admin.directory.user.readonly` — look up users by email via the Admin SDK
+3. In the Google Admin console, authorize the service account's client ID with the scopes above.
+4. Create a **Google Chat app** in Google Cloud Console (Pub/Sub or HTTP endpoint type) and associate the service account with it.
+5. Note a **Google Workspace admin email** to use for Admin SDK impersonation (`GCHAT_ADMIN_EMAIL`).
 
 ### 2. GitHub Personal Access Token
 
@@ -52,11 +66,13 @@ There are two ways to provide this file depending on how you run the service:
 
 ## Environment Variables
 
+### Common
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `GITHUB_WEBHOOK_SECRET` | Yes | — | HMAC secret shared with the GitHub webhook |
 | `GITHUB_TOKEN` | Yes | — | GitHub PAT with `read:org` scope |
-| `SLACK_BOT_TOKEN` | Yes | — | Slack bot OAuth token (`xoxb-…`) |
+| `NOTIFICATION_PLATFORM` | No | `slack` | Chat platform to use: `slack` or `google_chat` |
 | `SUBSCRIPTIONS_PATH` | No | — | Path to an external `subscriptions.yaml`. When set, the embedded file is ignored. |
 | `PORT` | No | `8080` | HTTP port the server listens on |
 | `LOG_LEVEL` | No | `info` | Logging level (`debug`, `info`, `warn`, `error`) |
@@ -67,8 +83,26 @@ There are two ways to provide this file depending on how you run the service:
 | `DELIVERY_DEDUP_TTL_HOURS` | No | `4` | How long to suppress duplicate webhook deliveries |
 | `OTEL_SERVICE_NAME` | No | `github-webhook-notifier` | Service name reported to the OTel collector |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | — | OTLP gRPC endpoint (e.g. `otel-collector:4317`). Omit to disable tracing/metrics export. |
+
+### Slack (`NOTIFICATION_PLATFORM=slack`)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SLACK_BOT_TOKEN` | Yes | — | Slack bot OAuth token (`xoxb-…`) |
 | `SLACK_API_URL` | No | — | Override Slack API base URL (for local testing) |
-| `GITHUB_API_URL` | No | — | Override GitHub API base URL (for local testing) |
+
+### Google Chat (`NOTIFICATION_PLATFORM=google_chat`)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GCHAT_CREDENTIALS_JSON` | Yes | — | Google service account key JSON (raw string) |
+| `GCHAT_ADMIN_EMAIL` | Yes | — | Google Workspace admin email used to impersonate Admin SDK calls |
+
+### Local development only
+
+| Variable | Description |
+|---|---|
+| `GITHUB_API_URL` | Override GitHub API base URL |
 
 ---
 
@@ -76,7 +110,7 @@ There are two ways to provide this file depending on how you run the service:
 
 ### Secrets
 
-Store sensitive values in a `Secret`:
+#### Slack
 
 ```yaml
 apiVersion: v1
@@ -89,6 +123,27 @@ stringData:
   GITHUB_WEBHOOK_SECRET: "<your-webhook-secret>"
   GITHUB_TOKEN: "<your-github-pat>"
   SLACK_BOT_TOKEN: "<your-slack-bot-token>"
+```
+
+#### Google Chat
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: skip-the-line
+  namespace: default
+type: Opaque
+stringData:
+  GITHUB_WEBHOOK_SECRET: "<your-webhook-secret>"
+  GITHUB_TOKEN: "<your-github-pat>"
+  GCHAT_CREDENTIALS_JSON: |
+    {
+      "type": "service_account",
+      "project_id": "...",
+      ...
+    }
+  GCHAT_ADMIN_EMAIL: "admin@yourdomain.com"
 ```
 
 ### Subscriptions ConfigMap
@@ -136,6 +191,8 @@ spec:
               value: info
             - name: ENVIRONMENT
               value: production
+            - name: NOTIFICATION_PLATFORM
+              value: slack   # or google_chat
           envFrom:
             - secretRef:
                 name: skip-the-line

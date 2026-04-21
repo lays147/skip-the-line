@@ -2,15 +2,13 @@ package notification_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
-	"github.com/slack-go/slack"
+	"github.com/skip-the-line/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +19,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 		resolverMembers map[string][]string // team slug -> members
 		wantDMEmails    []string
 		wantDMCount     int
-		wantActorRef    string // expected value inside <@...> in the DM message
+		wantActorRef    string // expected AuthorID in the notification message
 	}{
 		{
 			name: "single individual reviewer notified",
@@ -41,7 +39,7 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 			},
 			wantDMEmails: []string{"reviewer1@example.com"},
 			wantDMCount:  1,
-			wantActorRef: "U-author@example.com", // author is subscribed → Slack ID used
+			wantActorRef: "U-author@example.com", // author is subscribed → platform ID used
 		},
 		{
 			name: "team reviewer expanded to members",
@@ -161,12 +159,12 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var capturedBlocks [][]slack.Block
+			var capturedMsgs []notifier.Message
 			dmUserIDs := []string{}
-			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
-					dmUserIDs = append(dmUserIDs, slackUserID)
-					capturedBlocks = append(capturedBlocks, blocks)
+			mockNotifier := &mocks.NotifierMock{
+				SendNotificationFunc: func(ctx context.Context, recipientID string, msg notifier.Message) error {
+					dmUserIDs = append(dmUserIDs, recipientID)
+					capturedMsgs = append(capturedMsgs, msg)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -209,11 +207,9 @@ func TestNotify_PullRequest_ReviewRequested(t *testing.T) {
 				}
 			}
 			if tc.wantActorRef != "" {
-				for _, blocks := range capturedBlocks {
-					// Convert blocks to JSON to check for actor ref in message
-					jsonStr, _ := json.Marshal(blocks)
-					if !strings.Contains(string(jsonStr), tc.wantActorRef) {
-						t.Errorf("expected message to contain actor ref %q, got: %s", tc.wantActorRef, jsonStr)
+				for _, msg := range capturedMsgs {
+					if msg.AuthorID != tc.wantActorRef {
+						t.Errorf("expected AuthorID %q, got %q", tc.wantActorRef, msg.AuthorID)
 					}
 				}
 			}

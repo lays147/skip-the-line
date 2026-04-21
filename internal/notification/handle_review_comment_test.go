@@ -2,14 +2,12 @@ package notification_test
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
-	"github.com/slack-go/slack"
+	"github.com/skip-the-line/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +17,7 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 		event            *github.PullRequestReviewCommentEvent
 		wantDMCount      int
 		wantEmails       []string
-		wantCommenterRef string // expected value inside <@...> in the DM message
+		wantCommenterRef string // expected AuthorID in the notification message
 	}{
 		{
 			name: "author is notified on review comment",
@@ -36,7 +34,7 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 			},
 			wantDMCount:      1,
 			wantEmails:       []string{"author@example.com"},
-			wantCommenterRef: "U-reviewer1@example.com", // reviewer1 is subscribed → Slack ID used
+			wantCommenterRef: "U-reviewer1@example.com", // reviewer1 is subscribed → platform ID used
 		},
 		{
 			name: "mentioned subscribers are notified",
@@ -127,12 +125,12 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var capturedBlocks [][]slack.Block
+			var capturedMsgs []notifier.Message
 			dmUserIDs := []string{}
-			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
-					dmUserIDs = append(dmUserIDs, slackUserID)
-					capturedBlocks = append(capturedBlocks, blocks)
+			mockNotifier := &mocks.NotifierMock{
+				SendNotificationFunc: func(ctx context.Context, recipientID string, msg notifier.Message) error {
+					dmUserIDs = append(dmUserIDs, recipientID)
+					capturedMsgs = append(capturedMsgs, msg)
 					return nil
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
@@ -167,12 +165,9 @@ func TestNotify_PullRequestReviewComment(t *testing.T) {
 				}
 			}
 			if tc.wantCommenterRef != "" {
-				// json.Marshal HTML-escapes < and > so we check for the ref
-				// value directly rather than the full <@ref> mention syntax.
-				for _, blocks := range capturedBlocks {
-					jsonStr, _ := json.Marshal(blocks)
-					if !strings.Contains(string(jsonStr), tc.wantCommenterRef) {
-						t.Errorf("expected message to contain commenter ref %q, got: %s", tc.wantCommenterRef, jsonStr)
+				for _, msg := range capturedMsgs {
+					if msg.AuthorID != tc.wantCommenterRef {
+						t.Errorf("expected AuthorID %q, got %q", tc.wantCommenterRef, msg.AuthorID)
 					}
 				}
 			}

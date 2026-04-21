@@ -3,11 +3,11 @@ package notification
 import (
 	"context"
 
-	"github.com/slack-go/slack"
+	"github.com/skip-the-line/internal/notifier"
 )
 
 //go:generate moq -out ../mocks/mock_github_team_resolver.go -pkg mocks . GitHubTeamResolver
-//go:generate moq -out ../mocks/mock_slack_notifier.go -pkg mocks . SlackNotifier
+//go:generate moq -out ../mocks/mock_notifier.go -pkg mocks . Notifier
 
 // GitHubTeamResolver resolves GitHub team membership.
 // GetTeamMembers returns all member usernames for a given org/team slug.
@@ -17,10 +17,12 @@ type GitHubTeamResolver interface {
 	GetTeamMembers(ctx context.Context, org, team string) ([]string, error)
 }
 
-// SlackNotifier sends direct messages via Slack.
-type SlackNotifier interface {
-	// LookupUserByEmail returns the Slack user ID for the given email address.
+// Notifier sends direct-message notifications on a chat platform.
+// Implementations include the Slack client and the Google Chat client.
+type Notifier interface {
+	// LookupUserByEmail returns the platform-native user ID for the given email address.
 	LookupUserByEmail(ctx context.Context, email string) (string, error)
-	// SendDM sends Block Kit blocks to the user identified by their Slack user ID.
-	SendDM(ctx context.Context, slackUserID string, blocks []slack.Block) error
+	// SendNotification delivers a notification message to the user identified
+	// by the platform-native recipientID returned by LookupUserByEmail.
+	SendNotification(ctx context.Context, recipientID string, msg notifier.Message) error
 }

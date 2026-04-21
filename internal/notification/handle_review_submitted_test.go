@@ -2,15 +2,13 @@ package notification_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/skip-the-line/internal/mocks"
 	"github.com/skip-the-line/internal/notification"
-	"github.com/slack-go/slack"
+	"github.com/skip-the-line/internal/notifier"
 	"go.uber.org/zap"
 )
 
@@ -19,8 +17,8 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 		name         string
 		event        *github.PullRequestReviewEvent
 		wantDMCount  int
-		wantActorRef string // expected value inside <@...> in the DM message
-		slackErr     error
+		wantActorRef string // expected AuthorID in the notification message
+		sendErr      error
 		lookupErr    error
 	}{
 		{
@@ -37,7 +35,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 				},
 			},
 			wantDMCount:  1,
-			wantActorRef: "U-reviewer1@example.com", // reviewer1 is subscribed → Slack ID used
+			wantActorRef: "U-reviewer1@example.com", // reviewer1 is subscribed → platform ID used
 		},
 		{
 			name: "reviewer is not notified (author == reviewer excluded)",
@@ -55,7 +53,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 			wantDMCount: 0,
 		},
 		{
-			name: "Slack error is logged and skipped (best-effort)",
+			name: "send error is logged and skipped (best-effort)",
 			event: &github.PullRequestReviewEvent{
 				Action: strPtr("submitted"),
 				PullRequest: &github.PullRequest{
@@ -67,7 +65,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 					User: &github.User{Login: strPtr("reviewer1")},
 				},
 			},
-			slackErr:     errors.New("slack unavailable"),
+			sendErr:      errors.New("platform unavailable"),
 			wantDMCount:  1, // attempted once, error swallowed
 			wantActorRef: "U-reviewer1@example.com",
 		},
@@ -84,7 +82,7 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 					User: &github.User{Login: strPtr("reviewer1")},
 				},
 			},
-			lookupErr:   errors.New("slack lookup unavailable"),
+			lookupErr:   errors.New("lookup unavailable"),
 			wantDMCount: 0, // lookup failed → no DM attempted, error swallowed
 		},
 		{
@@ -107,13 +105,13 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var capturedBlocks [][]slack.Block
+			var capturedMsgs []notifier.Message
 			dmCount := 0
-			mockNotifier := &mocks.SlackNotifierMock{
-				SendDMFunc: func(ctx context.Context, slackUserID string, blocks []slack.Block) error {
+			mockNotifier := &mocks.NotifierMock{
+				SendNotificationFunc: func(ctx context.Context, recipientID string, msg notifier.Message) error {
 					dmCount++
-					capturedBlocks = append(capturedBlocks, blocks)
-					return tc.slackErr
+					capturedMsgs = append(capturedMsgs, msg)
+					return tc.sendErr
 				},
 				LookupUserByEmailFunc: func(ctx context.Context, email string) (string, error) {
 					if tc.lookupErr != nil {
@@ -137,10 +135,9 @@ func TestNotify_PullRequestReview_Submitted(t *testing.T) {
 				t.Errorf("expected %d DM attempts, got %d", tc.wantDMCount, dmCount)
 			}
 			if tc.wantActorRef != "" {
-				for _, blocks := range capturedBlocks {
-					jsonStr, _ := json.Marshal(blocks)
-					if !strings.Contains(string(jsonStr), tc.wantActorRef) {
-						t.Errorf("expected message to contain actor ref %q, got: %s", tc.wantActorRef, jsonStr)
+				for _, msg := range capturedMsgs {
+					if msg.AuthorID != tc.wantActorRef {
+						t.Errorf("expected AuthorID %q, got %q", tc.wantActorRef, msg.AuthorID)
 					}
 				}
 			}
